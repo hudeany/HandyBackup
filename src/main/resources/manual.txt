@@ -1,0 +1,56 @@
+HandyBackup - Backup of photos and videos from Android phones to a Samba share
+
+REQUIREMENTS
+- Windows (the phone is accessed via the Windows device drivers, MTP)
+- Phone connected via USB, unlocked and set to "File transfer"
+- A Samba share in the local network with user and password
+
+GETTING STARTED
+1. Open "Shares ..." and create a share: server, share, optionally a subfolder,
+   user and password. "Test connection" checks the settings.
+2. Connect the phone and click "Search devices".
+3. Select the share for this phone under "Backup target". The phone is recognized by its
+   serial number, so the assignment only has to be made once. Several phones can be assigned
+   to one share, e.g. the old and the new phone of the same person.
+4. Click "Start backup".
+
+DISPLAY
+The left side shows the folder tree of the phone. Folders shown in bold are backed up.
+The right side shows the folder tree of the assigned share.
+A double click (or Enter) on a file opens it with the system's default application,
+e.g. images in the photo viewer. For this, a copy is loaded into a temporary folder.
+Selected files on the phone or on the share can be deleted via the context menu (right mouse button)
+or the Delete key. A confirmation is always shown first. For the phone it shows whether the files
+are backed up, for the share whether the files are still on the connected phone.
+Deleting on the share also removes the entries from the index; if the file is still on a phone,
+it is backed up again with the next backup. The folder ".handybackup" is protected.
+
+WHAT IS BACKED UP
+Images and videos (jpg, jpeg, png, heic, mp4, mov) from the usual folders: DCIM, Pictures, Movies,
+Download and the media folders of apps like WhatsApp and Telegram. Hidden folders (e.g. thumbnails
+and trash) as well as the WhatsApp folders "Sent" and "Private" are not backed up.
+
+STORAGE ON THE SHARE
+<subfolder>/<year>/<year-month>/<original file name>
+If another file with the same name already exists there, "_1", "_2" etc. is appended.
+The backup itself never overwrites or deletes anything on the share.
+
+DUPLICATE FILES
+The folder ".handybackup" of the share contains an index of all backed-up files with checksum.
+Files already backed up are skipped next time without transferring them again.
+Files with the same content are stored only once, even if they come from another phone.
+
+CANCEL
+"Cancel" ends the backup after the file currently being transferred. The next run
+continues with the files still missing.
+
+DELETING ON THE PHONE
+Next to the device information there is "Delete from phone after ... days". The setting applies
+per phone (serial number), the default is 90 days:
+  -1  never delete
+   0  delete all backed-up files
+   x  delete backed-up files older than x days
+Files are only deleted after a complete, not cancelled backup and only after a confirmation
+showing the number and size of the files. A file is only deleted if it is in the index and
+its copy with the correct size is on the share. Files with unknown date are only deleted
+with 0. If a file on the phone was changed since the backup, it is kept.

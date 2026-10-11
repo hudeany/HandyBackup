@@ -1,0 +1,31 @@
+Version ${build.version}
+
+25.1.63
+Added configuration option to ignore comments
+
+25.1.62
+CSV files import and export
+Improved Excel data values import
+Improved DeepL translation support
+
+
+Version 25.1.54
+
+Checking and downloading latest update for application via GitHub
+Menu -> ?-Button (Help Menu) -> Check for Update
+
+
+Version 25.1.53
+
+Added DeepL support for translations (needs DeepL API key in config)
+
+
+Version 25.1.42
+
+Fixed usage of excludes
+Readded check of usage and missing language properties keys
+Added manual
+Added command line interface (CLI)
+Added progress bars
+Improve storage of multiple sets in other directory but referenced by set name as far as possible
+Improved loading of single and multiple language properties sets

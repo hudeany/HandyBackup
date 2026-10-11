@@ -1,0 +1,60 @@
+Usage:
+	java -jar LanguagePropertiesManager.jar -exportToExcel <language properties file or directory path> -excelFile <output Excel file path> [-v]
+	or
+	java -jar LanguagePropertiesManager.jar -exportToCsv <language properties file or directory path> -csvFile <output CSV file path> [-v]
+	or
+	java -jar LanguagePropertiesManager.jar -importFromExcel <input Excel file path> [-outputDirectory <language properties output directory>] [-v]
+	or
+	java -jar LanguagePropertiesManager.jar -importFromCsv <input CSV file path> [-outputDirectory <language properties output directory>] [-v]
+
+Mandatory parameters for Excel file export
+	-exportToExcel <language properties file or directory path>
+	-excelFile <output Excel file path>
+
+Optional parameters for Excel file export
+	-overwrite:
+		Allow overwriting the output Excel file, if it already exists
+	-propertiesFileExtension <extension>:
+		Do not use the default language file extension ".properties", but a differently defined customized extension like "_mytext.properties"
+	-v: verbose output with progress bar
+
+Mandatory parameters for Excel file import
+	-importFromExcel <input Excel file path>
+
+Optional parameters for Excel file import
+	-outputDirectory <language properties output directory>:
+		If outputDirectory is not defined, all language properties sets will be imported to the defined original file paths in the Excel file.
+		If outputDirectory is defined, the existing language properties sets file paths within that directory will be detected and used for matching set names.
+		Other language properties sets without matching file paths will be store as new language properties sets in the base directory itself.
+	-propertiesFileExtension <extension>:
+		Do not use the default language file extension ".properties", but a differently defined customized extension like "_mytext.properties"
+	-v: verbose output with progress bar
+
+Mandatory parameters for CSV file export
+	-exportToCsv <language properties file or directory path>
+	-csvFile <output CSV file path>
+
+Optional parameters for CSV file export
+	-overwrite:
+		Allow overwriting the output CSV file, if it already exists
+	-propertiesFileExtension <extension>:
+		Do not use the default language file extension ".properties", but a differently defined customized extension like "_mytext.properties"
+	-v: verbose output with progress bar
+
+Mandatory parameters for CSV file import
+	-importFromCsv <input CSV file path>
+
+Optional parameters for CSV file import
+	-outputDirectory <language properties output directory>:
+		If outputDirectory is not defined, all language properties sets will be imported to the defined original file paths in the CSV file.
+		If outputDirectory is defined, the existing language properties sets file paths within that directory will be detected and used for matching set names.
+		Other language properties sets without matching file paths will be store as new language properties sets in the base directory itself.
+	-propertiesFileExtension <extension>:
+		Do not use the default language file extension ".properties", but a differently defined customized extension like "_mytext.properties"
+	-v: verbose output with progress bar
+
+Global standalone parameters
+	help: Show this help manual
+	gui: Open a GUI
+	version: Show current local version of this tool
+	update: Check for online update and ask, whether an available update shall be installed. [username [password]]

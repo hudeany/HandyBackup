@@ -1,0 +1,56 @@
+HandyBackup - Sicherung von Fotos und Videos von Android-Handys auf eine Samba-Freigabe
+
+VORAUSSETZUNGEN
+- Windows (der Zugriff auf das Handy läuft über die Windows-Gerätetreiber, MTP)
+- Handy per USB angeschlossen, entsperrt und auf "Dateiübertragung" gestellt
+- Eine Samba-Freigabe im lokalen Netz mit Benutzer und Passwort
+
+ERSTE SCHRITTE
+1. "Freigaben ..." öffnen und eine Freigabe anlegen: Server, Freigabe, optional ein Unterordner,
+   Benutzer und Passwort. Mit "Verbindung testen" lassen sich die Angaben prüfen.
+2. Handy anschließen und "Geräte suchen" klicken.
+3. Unter "Sicherungsziel" die Freigabe für dieses Handy auswählen. Das Handy wird über seine
+   Seriennummer erkannt, die Zuordnung muss also nur einmal gemacht werden. Einer Freigabe können
+   mehrere Handys zugeordnet werden, z.B. das alte und das neue Handy derselben Person.
+4. "Sicherung starten" klicken.
+
+ANZEIGE
+Links steht der Verzeichnisbaum des Handys. Fett dargestellte Ordner werden gesichert.
+Rechts steht der Verzeichnisbaum der zugeordneten Freigabe.
+Ein Doppelklick (oder Enter) auf eine Datei öffnet sie mit der Standardanwendung des Systems,
+z.B. Bilder in der Fotoanzeige. Dazu wird eine Kopie in einen temporären Ordner geladen.
+Über das Kontextmenü (rechte Maustaste) oder die Entf-Taste lassen sich markierte Dateien auf dem
+Handy oder auf der Freigabe löschen. Vorher erscheint immer eine Sicherheitsabfrage. Sie zeigt beim Handy,
+ob die Dateien gesichert sind, und bei der Freigabe, ob die Dateien noch auf dem angeschlossenen Handy liegen.
+Beim Löschen auf der Freigabe werden auch die Einträge im Index entfernt; liegt die Datei noch auf einem
+Handy, wird sie bei der nächsten Sicherung erneut gesichert. Der Ordner ".handybackup" ist geschützt.
+
+WAS WIRD GESICHERT
+Bilder und Videos (jpg, jpeg, png, heic, mp4, mov) aus den üblichen Ordnern: DCIM, Pictures, Movies,
+Download und die Medienordner von Apps wie WhatsApp und Telegram. Versteckte Ordner (z.B. Vorschaubilder
+und Papierkorb) sowie die WhatsApp-Ordner "Sent" und "Private" werden nicht gesichert.
+
+ABLAGE AUF DER FREIGABE
+<Unterordner>/<Jahr>/<Jahr-Monat>/<Originaldateiname>
+Gibt es dort schon eine andere Datei mit demselben Namen, wird "_1", "_2" usw. angehängt.
+Die Sicherung selbst überschreibt oder löscht auf der Freigabe nie etwas.
+
+DOPPELTE DATEIEN
+Im Ordner ".handybackup" der Freigabe liegt ein Index aller gesicherten Dateien mit Prüfsumme.
+Bereits gesicherte Dateien werden beim nächsten Mal übersprungen, ohne sie erneut zu übertragen.
+Dateien mit gleichem Inhalt werden nur einmal abgelegt, auch wenn sie von einem anderen Handy kommen.
+
+ABBRECHEN
+"Abbrechen" beendet die Sicherung nach der Datei, die gerade übertragen wird. Beim nächsten Start
+geht es mit den noch fehlenden Dateien weiter.
+
+LÖSCHEN AUF DEM HANDY
+Rechts neben den Geräteinformationen steht "Vom Handy löschen nach ... Tagen". Die Einstellung gilt
+je Handy (Seriennummer), Vorgabe sind 90 Tage:
+  -1  nie löschen
+   0  alle gesicherten Dateien löschen
+   x  gesicherte Dateien löschen, die älter als x Tage sind
+Gelöscht wird nur nach einer vollständigen, nicht abgebrochenen Sicherung und erst nach einer Rückfrage,
+die Anzahl und Größe der Dateien anzeigt. Eine Datei wird nur gelöscht, wenn sie im Index steht und
+ihre Kopie mit der richtigen Größe auf der Freigabe liegt. Dateien mit unbekanntem Datum werden nur
+bei 0 gelöscht. Hat sich eine Datei auf dem Handy seit der Sicherung geändert, bleibt sie erhalten.
