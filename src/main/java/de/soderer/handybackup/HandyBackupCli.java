@@ -406,7 +406,7 @@ public class HandyBackupCli {
 		}, "HandyBackup-Shutdown"));
 	}
 
-	private int usageError(final String message) throws Exception {
+	private static int usageError(final String message) throws Exception {
 		printError(message);
 		System.err.println();
 		printHelp();
