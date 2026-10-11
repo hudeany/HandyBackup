@@ -84,6 +84,24 @@ The log at the bottom lists every step.
 
 ---
 
+## Command line
+
+Once phones and shares are set up in the GUI, backups can also run without it, e.g. as a scheduled task:
+
+```
+java -jar HandyBackup.jar devices                 list connected phones, serial numbers and assignments
+java -jar HandyBackup.jar backup                  back up all connected, assigned phones
+java -jar HandyBackup.jar backup -delete -v       ... and delete backed-up files on the phones per their setting
+java -jar HandyBackup.jar backup -serial <sn>     back up only one phone
+java -jar HandyBackup.jar version | update | help
+```
+
+Without `-delete`, nothing is ever deleted on a phone from the command line; the number of deletable files is only reported.
+Exit codes: `0` success, `1` error, `2` no connected (assigned) phone, `3` invalid command line.
+`Ctrl+C` stops after the current file and saves the index first.
+
+---
+
 ## Storage layout on the share
 
 ```

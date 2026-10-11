@@ -105,6 +105,13 @@ public class BackupEngine {
 		cancelled = true;
 	}
 
+	/**
+	 * Whether cancellation was requested.
+	 */
+	public boolean isCancelled() {
+		return cancelled;
+	}
+
 	public BackupResult run() throws Exception {
 		if (device.serialNumber() == null) {
 			throw new Exception("Device has no serial number");

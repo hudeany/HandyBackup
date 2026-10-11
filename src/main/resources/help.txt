@@ -1,60 +1,48 @@
 Usage:
-	java -jar LanguagePropertiesManager.jar -exportToExcel <language properties file or directory path> -excelFile <output Excel file path> [-v]
+	java -jar HandyBackup.jar [gui]
 	or
-	java -jar LanguagePropertiesManager.jar -exportToCsv <language properties file or directory path> -csvFile <output CSV file path> [-v]
+	java -jar HandyBackup.jar devices
 	or
-	java -jar LanguagePropertiesManager.jar -importFromExcel <input Excel file path> [-outputDirectory <language properties output directory>] [-v]
+	java -jar HandyBackup.jar backup [-serial <serial number>] [-delete] [-v]
 	or
-	java -jar LanguagePropertiesManager.jar -importFromCsv <input CSV file path> [-outputDirectory <language properties output directory>] [-v]
+	java -jar HandyBackup.jar version | update | help
 
-Mandatory parameters for Excel file export
-	-exportToExcel <language properties file or directory path>
-	-excelFile <output Excel file path>
+Commands and parameters may be written with or without leading "-" (e.g. "backup" or "-backup").
+Phones are connected via USB in "File transfer" (MTP) mode. Shares and phone assignments are
+configured once in the GUI and stored in ~/.HandyBackup/.HandyBackup.devices.config.
 
-Optional parameters for Excel file export
-	-overwrite:
-		Allow overwriting the output Excel file, if it already exists
-	-propertiesFileExtension <extension>:
-		Do not use the default language file extension ".properties", but a differently defined customized extension like "_mytext.properties"
-	-v: verbose output with progress bar
+Commands
+	gui:
+		Open the GUI (default without any command)
+	devices:
+		List the connected phones with serial number, assigned share and deletion setting
+	backup:
+		Back up the images and videos of all connected phones that are assigned to a share
+	version:
+		Show the current local version of this tool
+	update:
+		Check for an online update and ask, whether an available update shall be installed
+	help:
+		Show this help manual
 
-Mandatory parameters for Excel file import
-	-importFromExcel <input Excel file path>
+Optional parameters for backup
+	-serial <serial number>:
+		Back up only the phone with this serial number (see command "devices")
+	-delete:
+		After a complete backup, delete backed-up files from the phone according to the phone's setting
+		"Delete from phone after ... days" (-1 = never, 0 = all backed-up files, x = older than x days).
+		Only files whose copy is verified on the share are deleted.
+		Without this parameter nothing is deleted on the phone, only the number of deletable files is shown.
+	-v:
+		Verbose output with progress display
 
-Optional parameters for Excel file import
-	-outputDirectory <language properties output directory>:
-		If outputDirectory is not defined, all language properties sets will be imported to the defined original file paths in the Excel file.
-		If outputDirectory is defined, the existing language properties sets file paths within that directory will be detected and used for matching set names.
-		Other language properties sets without matching file paths will be store as new language properties sets in the base directory itself.
-	-propertiesFileExtension <extension>:
-		Do not use the default language file extension ".properties", but a differently defined customized extension like "_mytext.properties"
-	-v: verbose output with progress bar
+Exit codes
+	0: Success
+	1: At least one error occurred
+	2: No connected (and assigned) phone found
+	3: Invalid command line
 
-Mandatory parameters for CSV file export
-	-exportToCsv <language properties file or directory path>
-	-csvFile <output CSV file path>
+Example for a scheduled backup (Windows task scheduler):
+	java -jar HandyBackup.jar backup -delete
 
-Optional parameters for CSV file export
-	-overwrite:
-		Allow overwriting the output CSV file, if it already exists
-	-propertiesFileExtension <extension>:
-		Do not use the default language file extension ".properties", but a differently defined customized extension like "_mytext.properties"
-	-v: verbose output with progress bar
-
-Mandatory parameters for CSV file import
-	-importFromCsv <input CSV file path>
-
-Optional parameters for CSV file import
-	-outputDirectory <language properties output directory>:
-		If outputDirectory is not defined, all language properties sets will be imported to the defined original file paths in the CSV file.
-		If outputDirectory is defined, the existing language properties sets file paths within that directory will be detected and used for matching set names.
-		Other language properties sets without matching file paths will be store as new language properties sets in the base directory itself.
-	-propertiesFileExtension <extension>:
-		Do not use the default language file extension ".properties", but a differently defined customized extension like "_mytext.properties"
-	-v: verbose output with progress bar
-
-Global standalone parameters
-	help: Show this help manual
-	gui: Open a GUI
-	version: Show current local version of this tool
-	update: Check for online update and ask, whether an available update shall be installed. [username [password]]
+Ctrl+C cancels a running backup after the current file; the backup index is saved before exiting.

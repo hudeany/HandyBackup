@@ -192,6 +192,11 @@ public class HandyBackup extends UpdateableGuiApplication {
 			Locale.setDefault(Locale.ENGLISH);
 		}
 
+		// Command line interface (all arguments except "gui"), e.g. for scheduled backups
+		if (HandyBackupCli.isCliCall(args)) {
+			System.exit(new HandyBackupCli(configuration, configurationError).run(args));
+		}
+
 		// Allows pinning the application to the Linux Gnome dock (needs "--add-opens=java.desktop/sun.awt.X11=ALL-UNNAMED")
 		de.soderer.utilities.swing.SwingUtilities.setAwtWmClass(APPLICATION_STARTUPCLASS_NAME);
 		de.soderer.utilities.swing.SwingUtilities.setSystemLookAndFeel();
