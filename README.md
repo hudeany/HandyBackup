@@ -4,7 +4,6 @@
 
 ![Platform](https://img.shields.io/badge/platform-Windows-0078D6)
 ![Java](https://img.shields.io/badge/Java-17%2B-ED8B00)
-![GUI](https://img.shields.io/badge/GUI-Swing-5382A1)
 ![Languages](https://img.shields.io/badge/languages-English%20%7C%20Deutsch-informational)
 ![Version](https://img.shields.io/badge/version-26.0.0-success)
 
