@@ -54,3 +54,7 @@ Files are only deleted after a complete, not cancelled backup and only after a c
 showing the number and size of the files. A file is only deleted if it is in the index and
 its copy with the correct size is on the share. Files with unknown date are only deleted
 with 0. If a file on the phone was changed since the backup, it is kept.
+Single folders can be excluded from this deletion via the context menu of the phone tree
+("Exclude from deletion"). The exclusion applies per phone and includes all subfolders; such folders
+and their files are marked with a color. It is removed at the same folder via the context menu.
+Manual deletion via the context menu stays possible, the confirmation then points this out.

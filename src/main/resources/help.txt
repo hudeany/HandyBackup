@@ -32,6 +32,7 @@ Optional parameters for backup
 		After a complete backup, delete backed-up files from the phone according to the phone's setting
 		"Delete from phone after ... days" (-1 = never, 0 = all backed-up files, x = older than x days).
 		Only files whose copy is verified on the share are deleted.
+		Folders excluded from deletion (context menu "Exclude from deletion" in the GUI) are never deleted.
 		Without this parameter nothing is deleted on the phone, only the number of deletable files is shown.
 	-v:
 		Verbose output with progress display

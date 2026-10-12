@@ -281,7 +281,7 @@ public class HandyBackupCli {
 
 			final List<BackupEngine.DeletionCandidate> candidates;
 			try {
-				candidates = engine.findDeletionCandidates(deleteAfterDays);
+				candidates = engine.findDeletionCandidates(deleteAfterDays, path -> configuration.getDeleteExclusion(device.serialNumber(), path));
 			} finally {
 				endProgress();
 			}
@@ -300,7 +300,7 @@ public class HandyBackupCli {
 
 			final BackupEngine.DeletionResult deletionResult;
 			try {
-				deletionResult = engine.deleteFromDevice(candidates);
+				deletionResult = engine.deleteFromDevice(candidates, path -> configuration.getDeleteExclusion(device.serialNumber(), path));
 			} finally {
 				endProgress();
 			}

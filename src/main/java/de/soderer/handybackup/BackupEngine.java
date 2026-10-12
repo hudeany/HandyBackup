@@ -22,7 +22,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.BooleanSupplier;
+import java.util.function.UnaryOperator;
 
 import de.soderer.handybackup.mtp.MtpDevice;
 import de.soderer.handybackup.mtp.MtpErrorType;
@@ -42,8 +44,9 @@ import de.soderer.utilities.remote.SmbConnection;
  * - files with content already in the share (SHA-256) are not stored again
  * - existing files in the share are never overwritten or deleted; name collisions get a suffix "_1", "_2" ...
  *
- * After a backup, files can be deleted from the device ({@link #findDeletionCandidates(int)},
- * {@link #deleteFromDevice(List)}). Only files that are verifiably stored in the share are deleted.
+ * After a backup, files can be deleted from the device ({@link #findDeletionCandidates(int, UnaryOperator)},
+ * {@link #deleteFromDevice(List, UnaryOperator)}). Only files that are verifiably stored in the share and
+ * not located in a folder excluded from deletion are deleted.
  */
 public class BackupEngine {
 	/** Folder names that are never scanned below a WhatsApp folder (own sent media, private folder) */
@@ -224,14 +227,16 @@ public class BackupEngine {
 	 * Determines the files that may be deleted from the device after {@link #run()}. A file qualifies only if
 	 * <ul>
 	 * <li>it is due by {@link #isDeletionDue(int, LocalDateTime, LocalDateTime)},</li>
+	 * <li>it is not located in a folder excluded from deletion,</li>
 	 * <li>the index contains it for this device with the same path, size and modification date, and</li>
 	 * <li>the stored copy exists in the share with the size of the index entry.</li>
 	 * </ul>
 	 * Files that failed in this backup or were not reached because of a cancellation are not in the index and are kept.
 	 *
-	 * @param deleteAfterDays &lt; 0 never delete, 0 delete all backed-up files, &gt; 0 delete backed-up files older than this many days
+	 * @param deleteAfterDays       &lt; 0 never delete, 0 delete all backed-up files, &gt; 0 delete backed-up files older than this many days
+	 * @param deleteExclusionLookup returns the excluded folder protecting a device path, null if the path is not protected
 	 */
-	public List<DeletionCandidate> findDeletionCandidates(final int deleteAfterDays) throws Exception {
+	public List<DeletionCandidate> findDeletionCandidates(final int deleteAfterDays, final UnaryOperator<String> deleteExclusionLookup) throws Exception {
 		if (scannedFiles == null || backupIndex == null) {
 			throw new IllegalStateException("Backup has not been run");
 		}
@@ -242,6 +247,8 @@ public class BackupEngine {
 
 		final LocalDateTime now = LocalDateTime.now();
 		final Map<String, Map<String, Long>> targetFolderCache = new HashMap<>();
+		// Number of kept files per excluded folder, logged as one line per folder instead of one line per file
+		final Map<String, Integer> protectedCounts = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
 		int done = 0;
 		for (final MtpFile mediaFile : scannedFiles) {
 			if (cancelled) {
@@ -255,6 +262,11 @@ public class BackupEngine {
 			if (entry == null) {
 				continue;
 			}
+			final String exclusion = deleteExclusionLookup.apply(mediaFile.path());
+			if (exclusion != null) {
+				protectedCounts.merge(exclusion, 1, Integer::sum);
+				continue;
+			}
 			final Long targetSize = getTargetFileSize(entry.targetPath(), targetFolderCache);
 			if (targetSize == null || targetSize.longValue() != entry.size()) {
 				listener.onLog(LangResources.get("notDeletedBackupMissing", mediaFile.path(), entry.targetPath()));
@@ -263,14 +275,20 @@ public class BackupEngine {
 			result.add(new DeletionCandidate(mediaFile, entry.targetPath()));
 		}
 		listener.onProgress(done, scannedFiles.size(), null);
+		for (final Map.Entry<String, Integer> protectedCount : protectedCounts.entrySet()) {
+			listener.onLog(LangResources.get("notDeletedProtectedFolder", protectedCount.getValue(), protectedCount.getKey()));
+		}
 		return result;
 	}
 
 	/**
 	 * Deletes the given files from the device. Before each deletion the file is checked again on the device:
-	 * if its size or modification date changed since the scan, it is kept.
+	 * if its size or modification date changed since the scan, it is kept. The exclusions are checked again
+	 * as well, so a folder excluded after the candidates were determined is respected.
+	 *
+	 * @param deleteExclusionLookup returns the excluded folder protecting a device path, null if the path is not protected
 	 */
-	public DeletionResult deleteFromDevice(final List<DeletionCandidate> candidates) throws Exception {
+	public DeletionResult deleteFromDevice(final List<DeletionCandidate> candidates, final UnaryOperator<String> deleteExclusionLookup) throws Exception {
 		int deleted = 0;
 		long deletedBytes = 0;
 		int skipped = 0;
@@ -282,6 +300,12 @@ public class BackupEngine {
 			}
 			final MtpFile scannedFile = candidate.file();
 			listener.onProgress(done++, candidates.size(), scannedFile.path());
+			final String exclusion = deleteExclusionLookup.apply(scannedFile.path());
+			if (exclusion != null) {
+				skipped++;
+				listener.onLog(LangResources.get("notDeletedProtected", scannedFile.path(), exclusion));
+				continue;
+			}
 			try {
 				final MtpFile currentFile = mtpFileSystem.getFile(scannedFile.path());
 				if (currentFile == null || currentFile.directory()) {

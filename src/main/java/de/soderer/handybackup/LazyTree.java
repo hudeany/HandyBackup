@@ -1,5 +1,6 @@
 package de.soderer.handybackup;
 
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Font;
 import java.awt.event.KeyAdapter;
@@ -12,7 +13,9 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
@@ -46,11 +49,23 @@ public class LazyTree extends JTree {
 		List<TreeEntry> loadChildren(TreeEntry folder) throws Exception;
 	}
 
+	/**
+	 * Additional marking of an entry in the tree.
+	 *
+	 * @param suffix   text appended to the entry's name, null for none
+	 * @param toolTip  line appended to the entry's tooltip, null for none
+	 * @param color    text color when the entry is not selected, null for the default color
+	 */
+	public record Decoration(String suffix, String toolTip, Color color) {
+	}
+
 	private final ExecutorService executor;
 	private final String emptyText;
 	private ChildLoader childLoader;
 	private Consumer<TreeEntry> fileOpenHandler;
 	private Consumer<List<TreeEntry>> fileDeleteHandler;
+	private BiConsumer<JPopupMenu, TreeEntry> folderMenuProvider;
+	private Function<TreeEntry, Decoration> decorator;
 
 	public LazyTree(final ExecutorService executor, final String emptyText) {
 		super(new DefaultTreeModel(new DefaultMutableTreeNode(emptyText)));
@@ -124,6 +139,23 @@ public class LazyTree extends JTree {
 	}
 
 	/**
+	 * Sets a provider that adds items to the context menu of a folder (the folder that was right-clicked), null for none.
+	 * Called in the event dispatch thread.
+	 */
+	public void setFolderMenuProvider(final BiConsumer<JPopupMenu, TreeEntry> provider) {
+		folderMenuProvider = provider;
+	}
+
+	/**
+	 * Sets a function returning an additional marking for an entry (null for none), null for no markings.
+	 * Called in the event dispatch thread while rendering, so it must be fast.
+	 */
+	public void setDecorator(final Function<TreeEntry, Decoration> decorator) {
+		this.decorator = decorator;
+		repaint();
+	}
+
+	/**
 	 * Selected file entries (folders and placeholder nodes are ignored).
 	 */
 	public List<TreeEntry> getSelectedFileEntries() {
@@ -150,17 +182,21 @@ public class LazyTree extends JTree {
 			setSelectionPath(path);
 		}
 		final List<TreeEntry> selectedFiles = getSelectedFileEntries();
-		if (selectedFiles.isEmpty()) {
-			return;
-		}
+		final TreeEntry clickedEntry = getEntry(path.getLastPathComponent());
 
 		final JPopupMenu menu = new JPopupMenu();
+		if (folderMenuProvider != null && clickedEntry != null && clickedEntry.directory()) {
+			folderMenuProvider.accept(menu, clickedEntry);
+		}
 		if (fileOpenHandler != null && selectedFiles.size() == 1) {
+			if (menu.getComponentCount() > 0) {
+				menu.addSeparator();
+			}
 			final JMenuItem openItem = new JMenuItem(LangResources.get("openMenuItem"));
 			openItem.addActionListener(action -> openFile(selectedFiles.get(0)));
 			menu.add(openItem);
 		}
-		if (fileDeleteHandler != null) {
+		if (fileDeleteHandler != null && !selectedFiles.isEmpty()) {
 			if (menu.getComponentCount() > 0) {
 				menu.addSeparator();
 			}
@@ -317,7 +353,7 @@ public class LazyTree extends JTree {
 		}
 	}
 
-	private static class EntryRenderer extends DefaultTreeCellRenderer {
+	private class EntryRenderer extends DefaultTreeCellRenderer {
 		private static final long serialVersionUID = 1L;
 
 		private final DateTimeFormatter dateFormat = DateTimeFormatter.ofPattern(LangResources.get("treeDateTimeFormat"));
@@ -334,15 +370,38 @@ public class LazyTree extends JTree {
 			}
 
 			setFont(tree.getFont().deriveFont(entry.backupRelevant() ? Font.BOLD : Font.PLAIN));
+			String text;
+			String toolTip;
 			if (entry.directory()) {
-				setText(entry.name());
-				setToolTipText(entry.path() + (entry.backupRelevant() ? "  " + LangResources.get("treeBackedUp") : ""));
+				text = entry.name();
+				toolTip = entry.path() + (entry.backupRelevant() ? "  " + LangResources.get("treeBackedUp") : "");
 			} else {
-				setText(entry.name() + "   " + formatSize(entry.size()) + (entry.modified() != null ? "   " + entry.modified().format(dateFormat) : ""));
-				setToolTipText(entry.path());
+				text = entry.name() + "   " + formatSize(entry.size()) + (entry.modified() != null ? "   " + entry.modified().format(dateFormat) : "");
+				toolTip = entry.path();
 			}
+
+			final Function<TreeEntry, Decoration> currentDecorator = decorator;
+			final Decoration decoration = currentDecorator == null ? null : currentDecorator.apply(entry);
+			if (decoration != null) {
+				if (decoration.suffix() != null) {
+					text += "  " + decoration.suffix();
+				}
+				if (decoration.toolTip() != null) {
+					toolTip += "\n" + decoration.toolTip();
+				}
+				if (decoration.color() != null && !selectedParam) {
+					setForeground(decoration.color());
+				}
+			}
+			setText(text);
+			// Tooltips with line breaks need HTML
+			setToolTipText(toolTip.contains("\n") ? "<html>" + escapeHtml(toolTip).replace("\n", "<br>") + "</html>" : toolTip);
 			return this;
 		}
+	}
+
+	private static String escapeHtml(final String text) {
+		return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
 	}
 
 	public static String formatSize(final long size) {

@@ -54,3 +54,7 @@ Gelöscht wird nur nach einer vollständigen, nicht abgebrochenen Sicherung und 
 die Anzahl und Größe der Dateien anzeigt. Eine Datei wird nur gelöscht, wenn sie im Index steht und
 ihre Kopie mit der richtigen Größe auf der Freigabe liegt. Dateien mit unbekanntem Datum werden nur
 bei 0 gelöscht. Hat sich eine Datei auf dem Handy seit der Sicherung geändert, bleibt sie erhalten.
+Einzelne Ordner lassen sich über das Kontextmenü im Handybaum ("Von Löschung ausnehmen") von dieser
+Löschung ausnehmen. Die Ausnahme gilt je Handy und auch für alle Unterordner; solche Ordner und ihre
+Dateien werden farbig markiert. Aufgehoben wird sie am selben Ordner über das Kontextmenü.
+Das manuelle Löschen über das Kontextmenü bleibt möglich, die Sicherheitsabfrage weist dann darauf hin.

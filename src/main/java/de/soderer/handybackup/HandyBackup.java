@@ -1,6 +1,7 @@
 package de.soderer.handybackup;
 
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Desktop;
 import java.awt.Dimension;
@@ -38,12 +39,14 @@ import javax.swing.DefaultComboBoxModel;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
+import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JComboBox;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
 import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
@@ -88,6 +91,8 @@ import de.soderer.utilities.swing.UpdateableGuiApplication;
  *
  * After a backup, backed-up files can be deleted from the device, configured per device
  * ("delete after days": &lt; 0 never, 0 all backed-up files, &gt; 0 files older than that).
+ * Single device folders (including their subfolders) can be excluded from this deletion via the context menu
+ * of the device tree; excluded folders are marked in the tree.
  *
  * All MTP and SMB operations run one after another in a single background thread.
  */
@@ -127,6 +132,9 @@ public class HandyBackup extends UpdateableGuiApplication {
 
 	/** Interval for checking whether a disconnected device is available again */
 	private static final long DEVICE_POLL_INTERVAL_MILLIS = 2000;
+
+	/** Text color of device folders and files excluded from the deletion after a backup */
+	private static final Color DELETE_PROTECTED_COLOR = new Color(0, 110, 160);
 
 	/** Prefix of the temporary folders holding copies of files opened for viewing */
 	private static final String VIEW_FOLDER_PREFIX = "handybackup_view_";
@@ -320,6 +328,8 @@ public class HandyBackup extends UpdateableGuiApplication {
 		}
 		deviceTree.setFileOpenHandler(this::openDeviceFile);
 		deviceTree.setFileDeleteHandler(this::deleteDeviceFiles);
+		deviceTree.setFolderMenuProvider(this::addDeviceFolderMenuItems);
+		deviceTree.setDecorator(this::decorateDeviceEntry);
 		shareTree.setFileDeleteHandler(this::deleteShareFiles);
 		shareTree.setFileOpenHandler(this::openShareFile);
 		refreshDevicesButton.addActionListener(event -> refreshDevices());
@@ -907,7 +917,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 			: LangResources.get("checkingOlderForDeletion", days));
 		ioExecutor.submit(() -> {
 			try {
-				final List<BackupEngine.DeletionCandidate> candidates = engine.findDeletionCandidates(days);
+				final List<BackupEngine.DeletionCandidate> candidates = engine.findDeletionCandidates(days, path -> configuration.getDeleteExclusion(device.serialNumber(), path));
 				SwingUtilities.invokeLater(() -> onDeletionCandidatesFound(engine, device, days, candidates, null));
 			} catch (final Throwable e) {
 				SwingUtilities.invokeLater(() -> onDeletionCandidatesFound(engine, device, days, null, e));
@@ -953,7 +963,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 		setBusy(LangResources.get("deletingOnPhone"));
 		ioExecutor.submit(() -> {
 			try {
-				final BackupEngine.DeletionResult result = engine.deleteFromDevice(candidates);
+				final BackupEngine.DeletionResult result = engine.deleteFromDevice(candidates, path -> configuration.getDeleteExclusion(device.serialNumber(), path));
 				SwingUtilities.invokeLater(() -> onDeletionFinished(result, null));
 			} catch (final Throwable e) {
 				SwingUtilities.invokeLater(() -> onDeletionFinished(null, e));
@@ -990,6 +1000,67 @@ public class HandyBackup extends UpdateableGuiApplication {
 			return String.format(Locale.getDefault(), "%.1f GB", bytes / (1024.0 * 1024 * 1024));
 		} else {
 			return String.format(Locale.getDefault(), "%.1f MB", bytes / (1024.0 * 1024));
+		}
+	}
+
+	// ---------------------------------------------------------------- folders excluded from deletion
+
+	/**
+	 * Adds "Exclude from deletion" to the context menu of a device folder. A folder protected by an excluded parent
+	 * folder shows the item checked but disabled; the exclusion can only be removed at the parent folder.
+	 * Exclusions are stored per device and therefore only possible for devices with an assigned share.
+	 */
+	private void addDeviceFolderMenuItems(final JPopupMenu menu, final TreeEntry folder) {
+		final MtpDevice device = currentDevice;
+		final String path = HandyBackupConfiguration.normalizeDevicePath(folder.path());
+		if (device == null || path == null) {
+			// The device root cannot be excluded (deletion is switched off completely with "-1" days)
+			return;
+		}
+		final HandyBackupConfiguration.DeviceAssignment assignment = configuration.getAssignment(device.serialNumber());
+		final String exclusion = assignment == null ? null : assignment.getDeleteExclusion(path);
+		final boolean inherited = exclusion != null && !exclusion.equalsIgnoreCase(path);
+
+		final JCheckBoxMenuItem excludeItem = new JCheckBoxMenuItem(LangResources.get("excludeFromDeletionMenuItem"), exclusion != null);
+		if (assignment == null) {
+			excludeItem.setEnabled(false);
+			excludeItem.setToolTipText(LangResources.get("excludeFromDeletionNoShare"));
+		} else if (inherited) {
+			excludeItem.setEnabled(false);
+			excludeItem.setToolTipText(LangResources.get("excludeFromDeletionInherited", exclusion));
+		}
+		excludeItem.addActionListener(action -> setDeleteExcluded(device, path, excludeItem.isSelected()));
+		menu.add(excludeItem);
+	}
+
+	private void setDeleteExcluded(final MtpDevice device, final String path, final boolean excluded) {
+		if (!configuration.setDeleteExcluded(device.serialNumber(), path, excluded)) {
+			return;
+		}
+		try {
+			configuration.save();
+		} catch (final Exception e) {
+			showErrorDialog(this, LangResources.get("configurationSaveFailed", HandyBackupConfiguration.getDevicesFile()), e);
+		}
+		log(LangResources.get(excluded ? "deleteExclusionAdded" : "deleteExclusionRemoved", path, device.name()));
+		deviceTree.repaint();
+	}
+
+	/**
+	 * Marks excluded folders with a text and all protected folders and files with a color. Called while rendering.
+	 */
+	private LazyTree.Decoration decorateDeviceEntry(final TreeEntry entry) {
+		final MtpDevice device = currentDevice;
+		if (device == null || device.serialNumber() == null) {
+			return null;
+		}
+		final String exclusion = configuration.getDeleteExclusion(device.serialNumber(), entry.path());
+		if (exclusion == null) {
+			return null;
+		} else if (entry.directory() && exclusion.equalsIgnoreCase(HandyBackupConfiguration.normalizeDevicePath(entry.path()))) {
+			return new LazyTree.Decoration(LangResources.get("treeDeleteProtected"), LangResources.get("treeDeleteProtectedTooltip"), DELETE_PROTECTED_COLOR);
+		} else {
+			return new LazyTree.Decoration(null, LangResources.get("treeDeleteProtectedBy", exclusion), DELETE_PROTECTED_COLOR);
 		}
 	}
 
@@ -1056,10 +1127,14 @@ public class HandyBackup extends UpdateableGuiApplication {
 
 		long totalBytes = 0;
 		int notBackedUp = 0;
+		int inProtectedFolder = 0;
 		for (final ManualDeletionItem item : items) {
 			totalBytes += Math.max(0, item.entry().size());
 			if (Boolean.FALSE.equals(item.backedUp())) {
 				notBackedUp++;
+			}
+			if (configuration.getDeleteExclusion(device.serialNumber(), item.entry().path()) != null) {
+				inProtectedFolder++;
 			}
 		}
 
@@ -1086,6 +1161,10 @@ public class HandyBackup extends UpdateableGuiApplication {
 			question.append(LangResources.get("fileNotBackedUp"));
 		} else {
 			question.append(LangResources.get("filesNotBackedUp", notBackedUp));
+		}
+		if (inProtectedFolder > 0) {
+			// Manual deletion is an explicit decision and stays possible, but the user is reminded of the exclusion
+			question.append("\n").append(items.size() == 1 ? LangResources.get("fileInProtectedFolder") : LangResources.get("filesInProtectedFolder", inProtectedFolder));
 		}
 		question.append("\n").append(LangResources.get("phoneDeletionIrreversible"));
 

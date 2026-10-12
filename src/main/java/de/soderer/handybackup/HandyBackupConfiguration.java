@@ -7,7 +7,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.TreeMap;
@@ -29,8 +31,9 @@ import de.soderer.utilities.ConfigurationProperties;
  * <pre>
  * Share.&lt;n&gt;.Name / .Hostname / .Port / .Sharename / .BasePath / .Username / .Password (DPAPI encrypted)
  * Device.&lt;n&gt;.SerialNumber / .DeviceName / .Share / .DeleteAfterDays
+ * Device.&lt;n&gt;.DeleteExclusion.&lt;m&gt; (device folders that are never deleted automatically)
  * </pre>
- * with n = 1, 2, 3 ... without gaps.
+ * with n, m = 1, 2, 3 ... without gaps.
  */
 public class HandyBackupConfiguration {
 	private static final String SHARE_PREFIX = "Share.";
@@ -47,10 +50,25 @@ public class HandyBackupConfiguration {
 	 * @param shareName    name of the assigned share
 	 * @param deleteAfterDays deletion of backed-up files from the device after the backup:
 	 *                        &lt; 0 never delete, 0 delete all backed-up files, &gt; 0 delete backed-up files older than this many days
+	 * @param deleteExclusions device folders (MTP paths like "/&lt;storage&gt;/DCIM/Camera") whose files are never deleted
+	 *                         automatically, including all subfolders; sorted, without redundant subfolder entries
 	 */
-	public record DeviceAssignment(String serialNumber, String deviceName, String shareName, int deleteAfterDays) {
+	public record DeviceAssignment(String serialNumber, String deviceName, String shareName, int deleteAfterDays, List<String> deleteExclusions) {
+		public DeviceAssignment {
+			deleteExclusions = normalizeExclusions(deleteExclusions);
+		}
+
 		public DeviceAssignment withShareName(final String newShareName) {
-			return new DeviceAssignment(serialNumber, deviceName, newShareName, deleteAfterDays);
+			return new DeviceAssignment(serialNumber, deviceName, newShareName, deleteAfterDays, deleteExclusions);
+		}
+
+		/**
+		 * Returns the excluded folder that protects the given device path (the path itself or one of its parent folders),
+		 * null if the path is not protected. Paths are compared case-insensitively, so a protection is never missed
+		 * because of a different spelling reported by the device.
+		 */
+		public String getDeleteExclusion(final String devicePath) {
+			return findExclusion(deleteExclusions, devicePath);
 		}
 	}
 
@@ -161,7 +179,8 @@ public class HandyBackupConfiguration {
 				values.apply(prefix + "SerialNumber"),
 				nullToEmpty(values.apply(prefix + "DeviceName")),
 				nullToEmpty(values.apply(prefix + "Share")),
-				parseDeleteAfterDays(values.apply(prefix + "DeleteAfterDays")));
+				parseDeleteAfterDays(values.apply(prefix + "DeleteAfterDays")),
+				parseDeleteExclusions(values, prefix + "DeleteExclusion."));
 			deviceAssignments.put(assignment.serialNumber(), assignment);
 		}
 	}
@@ -192,6 +211,10 @@ public class HandyBackupConfiguration {
 			properties.setProperty(prefix + "DeviceName", nullToEmpty(assignment.deviceName()));
 			properties.setProperty(prefix + "Share", assignment.shareName());
 			properties.setProperty(prefix + "DeleteAfterDays", Integer.toString(assignment.deleteAfterDays()));
+			int exclusionIndex = 1;
+			for (final String exclusion : assignment.deleteExclusions()) {
+				properties.setProperty(prefix + "DeleteExclusion." + exclusionIndex++, exclusion);
+			}
 		}
 
 		final File devicesFile = getDevicesFile();
@@ -246,7 +269,8 @@ public class HandyBackupConfiguration {
 
 	/**
 	 * Assigns a device to a share, or removes the assignment if shareName is null.
-	 * The deletion setting of an existing assignment is kept, a new assignment gets {@link #DEFAULT_DELETE_AFTER_DAYS}.
+	 * The deletion settings (days and excluded folders) of an existing assignment are kept,
+	 * a new assignment gets {@link #DEFAULT_DELETE_AFTER_DAYS} and no excluded folders.
 	 */
 	public synchronized void assign(final String serialNumber, final String deviceName, final String shareName) {
 		if (shareName == null) {
@@ -254,7 +278,8 @@ public class HandyBackupConfiguration {
 		} else {
 			final DeviceAssignment existing = deviceAssignments.get(serialNumber);
 			final int deleteAfterDays = existing == null ? DEFAULT_DELETE_AFTER_DAYS : existing.deleteAfterDays();
-			deviceAssignments.put(serialNumber, new DeviceAssignment(serialNumber, deviceName, shareName, deleteAfterDays));
+			final List<String> deleteExclusions = existing == null ? List.of() : existing.deleteExclusions();
+			deviceAssignments.put(serialNumber, new DeviceAssignment(serialNumber, deviceName, shareName, deleteAfterDays, deleteExclusions));
 		}
 	}
 
@@ -266,8 +291,47 @@ public class HandyBackupConfiguration {
 	public synchronized void setDeleteAfterDays(final String serialNumber, final int deleteAfterDays) {
 		final DeviceAssignment existing = serialNumber == null ? null : deviceAssignments.get(serialNumber);
 		if (existing != null) {
-			deviceAssignments.put(serialNumber, new DeviceAssignment(existing.serialNumber(), existing.deviceName(), existing.shareName(), deleteAfterDays));
+			deviceAssignments.put(serialNumber, new DeviceAssignment(existing.serialNumber(), existing.deviceName(), existing.shareName(), deleteAfterDays, existing.deleteExclusions()));
 		}
+	}
+
+	/**
+	 * Excludes a device folder (including all subfolders) from the automatic deletion after a backup, or removes
+	 * the exclusion. Excluding a folder removes the now redundant exclusions of its subfolders.
+	 * Does nothing if the device is not assigned.
+	 *
+	 * @param devicePath MTP path of the folder like "/&lt;storage&gt;/DCIM/Camera"
+	 * @return true if the setting was changed
+	 */
+	public synchronized boolean setDeleteExcluded(final String serialNumber, final String devicePath, final boolean excluded) {
+		final DeviceAssignment existing = serialNumber == null ? null : deviceAssignments.get(serialNumber);
+		final String path = normalizeDevicePath(devicePath);
+		if (existing == null || path == null) {
+			return false;
+		}
+		final List<String> exclusions = new ArrayList<>(existing.deleteExclusions());
+		final boolean changed;
+		if (excluded) {
+			// Already protected (itself or by a parent folder): nothing to change
+			changed = existing.getDeleteExclusion(path) == null;
+			exclusions.add(path);
+		} else {
+			changed = exclusions.removeIf(exclusion -> exclusion.equalsIgnoreCase(path));
+		}
+		if (changed) {
+			deviceAssignments.put(serialNumber, new DeviceAssignment(existing.serialNumber(), existing.deviceName(), existing.shareName(), existing.deleteAfterDays(), exclusions));
+		}
+		return changed;
+	}
+
+	/**
+	 * Returns the excluded folder of the device that protects the given device path from the automatic deletion,
+	 * null if the path is not protected or the device is not assigned.
+	 * Always reads the current setting, so changes made during a running deletion take effect immediately.
+	 */
+	public synchronized String getDeleteExclusion(final String serialNumber, final String devicePath) {
+		final DeviceAssignment assignment = serialNumber == null ? null : deviceAssignments.get(serialNumber);
+		return assignment == null ? null : assignment.getDeleteExclusion(devicePath);
 	}
 
 	public synchronized List<DeviceAssignment> getAssignmentsOfShare(final String shareName) {
@@ -303,6 +367,72 @@ public class HandyBackupConfiguration {
 		} catch (@SuppressWarnings("unused") final NumberFormatException e) {
 			return DEFAULT_DELETE_AFTER_DAYS;
 		}
+	}
+
+	private static List<String> parseDeleteExclusions(final UnaryOperator<String> values, final String keyPrefix) {
+		final List<String> result = new ArrayList<>();
+		for (int index = 1; values.apply(keyPrefix + index) != null; index++) {
+			result.add(values.apply(keyPrefix + index));
+		}
+		return result;
+	}
+
+	/**
+	 * Device path without trailing separator, null for empty paths and the device root ("/"),
+	 * which cannot be excluded (that would disable the deletion completely, which the days setting -1 is meant for).
+	 */
+	static String normalizeDevicePath(final String devicePath) {
+		if (devicePath == null) {
+			return null;
+		}
+		String path = devicePath.trim().replace('\\', '/');
+		while (path.endsWith("/")) {
+			path = path.substring(0, path.length() - 1);
+		}
+		if (path.isEmpty()) {
+			return null;
+		}
+		return path.startsWith("/") ? path : "/" + path;
+	}
+
+	/**
+	 * Normalizes, sorts and removes duplicates as well as folders that are already covered by an excluded parent folder.
+	 */
+	private static List<String> normalizeExclusions(final Collection<String> exclusions) {
+		final List<String> normalized = new ArrayList<>();
+		if (exclusions != null) {
+			for (final String exclusion : exclusions) {
+				final String path = normalizeDevicePath(exclusion);
+				if (path != null) {
+					normalized.add(path);
+				}
+			}
+		}
+		// Shorter (parent) paths first, so their subfolders are recognized as redundant
+		normalized.sort((a, b) -> a.length() != b.length() ? Integer.compare(a.length(), b.length()) : a.compareToIgnoreCase(b));
+		final List<String> result = new ArrayList<>();
+		for (final String path : normalized) {
+			if (findExclusion(result, path) == null) {
+				result.add(path);
+			}
+		}
+		result.sort(String.CASE_INSENSITIVE_ORDER);
+		return List.copyOf(result);
+	}
+
+	private static String findExclusion(final Collection<String> exclusions, final String devicePath) {
+		final String path = normalizeDevicePath(devicePath);
+		if (path == null) {
+			return null;
+		}
+		final String lowerPath = path.toLowerCase(Locale.ROOT);
+		for (final String exclusion : exclusions) {
+			final String lowerExclusion = exclusion.toLowerCase(Locale.ROOT);
+			if (lowerPath.equals(lowerExclusion) || lowerPath.startsWith(lowerExclusion + "/")) {
+				return exclusion;
+			}
+		}
+		return null;
 	}
 
 	private static String nullToEmpty(final String value) {
