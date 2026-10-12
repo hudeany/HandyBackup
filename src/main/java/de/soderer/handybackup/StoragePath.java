@@ -43,8 +43,8 @@ public class StoragePath {
 		this.deleteProtected = deleteProtected;
 	}
 
-	public StoragePath withDeleteProtected(final boolean deleteProtected) {
-		setDeleteProtected(deleteProtected);
+	public StoragePath withDeleteProtected(final boolean newDeleteProtected) {
+		setDeleteProtected(newDeleteProtected);
 		return this;
 	}
 
