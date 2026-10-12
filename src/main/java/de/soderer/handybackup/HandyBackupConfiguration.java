@@ -632,7 +632,7 @@ public class HandyBackupConfiguration {
 		if (backupFolders != null) {
 			for (final BackupFolder backupFolder : backupFolders) {
 				final String path = backupFolder == null ? null : normalizeDevicePath(backupFolder.devicePath());
-				if (path != null) {
+				if (backupFolder != null && path != null) {
 					result.put(path, path.equals(backupFolder.devicePath()) && backupFolder.custom()
 						? backupFolder
 						: new BackupFolder(path, backupFolder.backupTypes(), true));
