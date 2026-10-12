@@ -10,6 +10,7 @@ import java.util.Set;
 public class StoragePath {
 	private final String path;
 	private final Set<BackupType> backupTypes;
+	private boolean deleteProtected = false;
 
 	public StoragePath(final String path, final BackupType firstBackupType, final BackupType... furtherBackupTypes) {
 		if (path == null || path.isBlank()) {
@@ -28,6 +29,23 @@ public class StoragePath {
 
 	public Set<BackupType> getBackupTypes() {
 		return backupTypes;
+	}
+
+	/**
+	 * Whether this folder (including its subfolders) is excluded from the deletion after a backup by default.
+	 * The default can be lifted per device via the context menu of the device tree.
+	 */
+	public boolean isDeleteProtected() {
+		return deleteProtected;
+	}
+
+	public void setDeleteProtected(final boolean deleteProtected) {
+		this.deleteProtected = deleteProtected;
+	}
+
+	public StoragePath withDeleteProtected(final boolean deleteProtected) {
+		setDeleteProtected(deleteProtected);
+		return this;
 	}
 
 	/**

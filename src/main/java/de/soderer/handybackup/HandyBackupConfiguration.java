@@ -32,6 +32,7 @@ import de.soderer.utilities.ConfigurationProperties;
  * Share.&lt;n&gt;.Name / .Hostname / .Port / .Sharename / .BasePath / .Username / .Password (DPAPI encrypted)
  * Device.&lt;n&gt;.SerialNumber / .DeviceName / .Share / .DeleteAfterDays
  * Device.&lt;n&gt;.DeleteExclusion.&lt;m&gt; (device folders that are never deleted automatically)
+ * Device.&lt;n&gt;.DeleteRelease.&lt;m&gt; (device folders whose default exclusion from {@link StoragePaths} is lifted)
  * </pre>
  * with n, m = 1, 2, 3 ... without gaps.
  */
@@ -52,23 +53,34 @@ public class HandyBackupConfiguration {
 	 *                        &lt; 0 never delete, 0 delete all backed-up files, &gt; 0 delete backed-up files older than this many days
 	 * @param deleteExclusions device folders (MTP paths like "/&lt;storage&gt;/DCIM/Camera") whose files are never deleted
 	 *                         automatically, including all subfolders; sorted, without redundant subfolder entries
+	 * @param deleteReleases   device folders excluded by default in {@link StoragePaths}, whose default exclusion is lifted
+	 *                         for this device; sorted, only folders that actually have a default exclusion
 	 */
-	public record DeviceAssignment(String serialNumber, String deviceName, String shareName, int deleteAfterDays, List<String> deleteExclusions) {
+	public record DeviceAssignment(String serialNumber, String deviceName, String shareName, int deleteAfterDays, List<String> deleteExclusions, List<String> deleteReleases) {
 		public DeviceAssignment {
 			deleteExclusions = normalizeExclusions(deleteExclusions);
+			deleteReleases = normalizeReleases(deleteReleases);
 		}
 
 		public DeviceAssignment withShareName(final String newShareName) {
-			return new DeviceAssignment(serialNumber, deviceName, newShareName, deleteAfterDays, deleteExclusions);
+			return new DeviceAssignment(serialNumber, deviceName, newShareName, deleteAfterDays, deleteExclusions, deleteReleases);
 		}
 
 		/**
-		 * Returns the excluded folder that protects the given device path (the path itself or one of its parent folders),
+		 * Returns the folder that protects the given device path (the path itself or one of its parent folders),
+		 * either by a manual exclusion or by a default exclusion of {@link StoragePaths} that is not lifted,
 		 * null if the path is not protected. Paths are compared case-insensitively, so a protection is never missed
 		 * because of a different spelling reported by the device.
 		 */
 		public String getDeleteExclusion(final String devicePath) {
-			return findExclusion(deleteExclusions, devicePath);
+			return findProtection(deleteExclusions, deleteReleases, devicePath);
+		}
+
+		/**
+		 * Whether the default exclusion of exactly this folder is lifted for this device.
+		 */
+		public boolean isDeleteReleased(final String devicePath) {
+			return findIgnoreCase(deleteReleases, normalizeDevicePath(devicePath)) != null;
 		}
 	}
 
@@ -180,7 +192,8 @@ public class HandyBackupConfiguration {
 				nullToEmpty(values.apply(prefix + "DeviceName")),
 				nullToEmpty(values.apply(prefix + "Share")),
 				parseDeleteAfterDays(values.apply(prefix + "DeleteAfterDays")),
-				parseDeleteExclusions(values, prefix + "DeleteExclusion."));
+				parsePathList(values, prefix + "DeleteExclusion."),
+				parsePathList(values, prefix + "DeleteRelease."));
 			deviceAssignments.put(assignment.serialNumber(), assignment);
 		}
 	}
@@ -214,6 +227,10 @@ public class HandyBackupConfiguration {
 			int exclusionIndex = 1;
 			for (final String exclusion : assignment.deleteExclusions()) {
 				properties.setProperty(prefix + "DeleteExclusion." + exclusionIndex++, exclusion);
+			}
+			int releaseIndex = 1;
+			for (final String release : assignment.deleteReleases()) {
+				properties.setProperty(prefix + "DeleteRelease." + releaseIndex++, release);
 			}
 		}
 
@@ -269,8 +286,8 @@ public class HandyBackupConfiguration {
 
 	/**
 	 * Assigns a device to a share, or removes the assignment if shareName is null.
-	 * The deletion settings (days and excluded folders) of an existing assignment are kept,
-	 * a new assignment gets {@link #DEFAULT_DELETE_AFTER_DAYS} and no excluded folders.
+	 * The deletion settings (days, excluded and released folders) of an existing assignment are kept,
+	 * a new assignment gets {@link #DEFAULT_DELETE_AFTER_DAYS} and only the default exclusions of {@link StoragePaths}.
 	 */
 	public synchronized void assign(final String serialNumber, final String deviceName, final String shareName) {
 		if (shareName == null) {
@@ -279,7 +296,8 @@ public class HandyBackupConfiguration {
 			final DeviceAssignment existing = deviceAssignments.get(serialNumber);
 			final int deleteAfterDays = existing == null ? DEFAULT_DELETE_AFTER_DAYS : existing.deleteAfterDays();
 			final List<String> deleteExclusions = existing == null ? List.of() : existing.deleteExclusions();
-			deviceAssignments.put(serialNumber, new DeviceAssignment(serialNumber, deviceName, shareName, deleteAfterDays, deleteExclusions));
+			final List<String> deleteReleases = existing == null ? List.of() : existing.deleteReleases();
+			deviceAssignments.put(serialNumber, new DeviceAssignment(serialNumber, deviceName, shareName, deleteAfterDays, deleteExclusions, deleteReleases));
 		}
 	}
 
@@ -291,13 +309,16 @@ public class HandyBackupConfiguration {
 	public synchronized void setDeleteAfterDays(final String serialNumber, final int deleteAfterDays) {
 		final DeviceAssignment existing = serialNumber == null ? null : deviceAssignments.get(serialNumber);
 		if (existing != null) {
-			deviceAssignments.put(serialNumber, new DeviceAssignment(existing.serialNumber(), existing.deviceName(), existing.shareName(), deleteAfterDays, existing.deleteExclusions()));
+			deviceAssignments.put(serialNumber, new DeviceAssignment(existing.serialNumber(), existing.deviceName(), existing.shareName(), deleteAfterDays, existing.deleteExclusions(), existing.deleteReleases()));
 		}
 	}
 
 	/**
 	 * Excludes a device folder (including all subfolders) from the automatic deletion after a backup, or removes
-	 * the exclusion. Excluding a folder removes the now redundant exclusions of its subfolders.
+	 * the exclusion. For a folder excluded by default in {@link StoragePaths}, removing the exclusion lifts the
+	 * default for this device and excluding it again restores the default.
+	 * Excluding a folder removes the now redundant exclusions of its subfolders.
+	 * A protection inherited from a parent folder is not changed by this method; it can only be changed at that folder.
 	 * Does nothing if the device is not assigned.
 	 *
 	 * @param devicePath MTP path of the folder like "/&lt;storage&gt;/DCIM/Camera"
@@ -310,28 +331,43 @@ public class HandyBackupConfiguration {
 			return false;
 		}
 		final List<String> exclusions = new ArrayList<>(existing.deleteExclusions());
-		final boolean changed;
+		final List<String> releases = new ArrayList<>(existing.deleteReleases());
 		if (excluded) {
-			// Already protected (itself or by a parent folder): nothing to change
-			changed = existing.getDeleteExclusion(path) == null;
-			exclusions.add(path);
+			releases.removeIf(release -> release.equalsIgnoreCase(path));
+			if (findProtection(exclusions, releases, path) == null) {
+				exclusions.add(path);
+			}
 		} else {
-			changed = exclusions.removeIf(exclusion -> exclusion.equalsIgnoreCase(path));
+			exclusions.removeIf(exclusion -> exclusion.equalsIgnoreCase(path));
+			if (isDefaultDeleteProtected(path) && findIgnoreCase(releases, path) == null) {
+				releases.add(path);
+			}
 		}
-		if (changed) {
-			deviceAssignments.put(serialNumber, new DeviceAssignment(existing.serialNumber(), existing.deviceName(), existing.shareName(), existing.deleteAfterDays(), exclusions));
+		final DeviceAssignment changed = new DeviceAssignment(existing.serialNumber(), existing.deviceName(), existing.shareName(), existing.deleteAfterDays(), exclusions, releases);
+		if (changed.equals(existing)) {
+			return false;
 		}
-		return changed;
+		deviceAssignments.put(serialNumber, changed);
+		return true;
 	}
 
 	/**
-	 * Returns the excluded folder of the device that protects the given device path from the automatic deletion,
-	 * null if the path is not protected or the device is not assigned.
+	 * Returns the folder of the device that protects the given device path from the automatic deletion,
+	 * null if the path is not protected. For a device without assignment only the default exclusions of
+	 * {@link StoragePaths} apply.
 	 * Always reads the current setting, so changes made during a running deletion take effect immediately.
 	 */
 	public synchronized String getDeleteExclusion(final String serialNumber, final String devicePath) {
 		final DeviceAssignment assignment = serialNumber == null ? null : deviceAssignments.get(serialNumber);
-		return assignment == null ? null : assignment.getDeleteExclusion(devicePath);
+		return assignment == null ? findProtection(List.of(), List.of(), devicePath) : assignment.getDeleteExclusion(devicePath);
+	}
+
+	/**
+	 * Whether the default exclusion of exactly this folder is lifted for the device.
+	 */
+	public synchronized boolean isDeleteReleased(final String serialNumber, final String devicePath) {
+		final DeviceAssignment assignment = serialNumber == null ? null : deviceAssignments.get(serialNumber);
+		return assignment != null && assignment.isDeleteReleased(devicePath);
 	}
 
 	public synchronized List<DeviceAssignment> getAssignmentsOfShare(final String shareName) {
@@ -369,7 +405,7 @@ public class HandyBackupConfiguration {
 		}
 	}
 
-	private static List<String> parseDeleteExclusions(final UnaryOperator<String> values, final String keyPrefix) {
+	private static List<String> parsePathList(final UnaryOperator<String> values, final String keyPrefix) {
 		final List<String> result = new ArrayList<>();
 		for (int index = 1; values.apply(keyPrefix + index) != null; index++) {
 			result.add(values.apply(keyPrefix + index));
@@ -393,6 +429,78 @@ public class HandyBackupConfiguration {
 			return null;
 		}
 		return path.startsWith("/") ? path : "/" + path;
+	}
+
+	/**
+	 * Parent folder of a device path, null for a storage root like "/&lt;storage&gt;" and for null.
+	 */
+	static String getParentDevicePath(final String devicePath) {
+		final String path = normalizeDevicePath(devicePath);
+		if (path == null) {
+			return null;
+		}
+		final int separatorIndex = path.lastIndexOf('/');
+		return separatorIndex <= 0 ? null : path.substring(0, separatorIndex);
+	}
+
+	/**
+	 * Whether exactly this device folder is excluded from the deletion by default in {@link StoragePaths}.
+	 * Device paths start with the storage name, which is ignored here: "/&lt;storage&gt;/Documents".
+	 */
+	static boolean isDefaultDeleteProtected(final String devicePath) {
+		final String path = normalizeDevicePath(devicePath);
+		if (path == null) {
+			return false;
+		}
+		final int storageEnd = path.indexOf('/', 1);
+		return storageEnd >= 0 && StoragePaths.isDeleteProtectedByDefault(path.substring(storageEnd));
+	}
+
+	/**
+	 * Walks from the given path up to the storage root. The deepest folder that is excluded manually,
+	 * or by a default exclusion that is not released, protects the path.
+	 *
+	 * @return the protecting folder, null if the path is not protected
+	 */
+	private static String findProtection(final Collection<String> exclusions, final Collection<String> releases, final String devicePath) {
+		for (String path = normalizeDevicePath(devicePath); path != null; path = getParentDevicePath(path)) {
+			final String exclusion = findIgnoreCase(exclusions, path);
+			if (exclusion != null) {
+				return exclusion;
+			} else if (isDefaultDeleteProtected(path) && findIgnoreCase(releases, path) == null) {
+				return path;
+			}
+		}
+		return null;
+	}
+
+	private static String findIgnoreCase(final Collection<String> values, final String value) {
+		if (value != null) {
+			for (final String entry : values) {
+				if (entry.equalsIgnoreCase(value)) {
+					return entry;
+				}
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Normalizes, sorts and removes duplicates as well as folders without a default exclusion
+	 * (e.g. after a change of {@link StoragePaths}).
+	 */
+	private static List<String> normalizeReleases(final Collection<String> releases) {
+		final List<String> result = new ArrayList<>();
+		if (releases != null) {
+			for (final String release : releases) {
+				final String path = normalizeDevicePath(release);
+				if (path != null && isDefaultDeleteProtected(path) && findIgnoreCase(result, path) == null) {
+					result.add(path);
+				}
+			}
+		}
+		result.sort(String.CASE_INSENSITIVE_ORDER);
+		return List.copyOf(result);
 	}
 
 	/**

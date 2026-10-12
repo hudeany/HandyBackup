@@ -92,7 +92,8 @@ import de.soderer.utilities.swing.UpdateableGuiApplication;
  * After a backup, backed-up files can be deleted from the device, configured per device
  * ("delete after days": &lt; 0 never, 0 all backed-up files, &gt; 0 files older than that).
  * Single device folders (including their subfolders) can be excluded from this deletion via the context menu
- * of the device tree; excluded folders are marked in the tree.
+ * of the device tree; excluded folders are marked in the tree. Some folders of {@link StoragePaths} are excluded
+ * by default; this default can be lifted per device in the same way.
  *
  * All MTP and SMB operations run one after another in a single background thread.
  */
@@ -135,6 +136,9 @@ public class HandyBackup extends UpdateableGuiApplication {
 
 	/** Text color of device folders and files excluded from the deletion after a backup */
 	private static final Color DELETE_PROTECTED_COLOR = new Color(0, 110, 160);
+
+	/** Text color of device folders whose default exclusion from the deletion was lifted */
+	private static final Color DELETE_RELEASED_COLOR = new Color(170, 100, 0);
 
 	/** Prefix of the temporary folders holding copies of files opened for viewing */
 	private static final String VIEW_FOLDER_PREFIX = "handybackup_view_";
@@ -1006,9 +1010,11 @@ public class HandyBackup extends UpdateableGuiApplication {
 	// ---------------------------------------------------------------- folders excluded from deletion
 
 	/**
-	 * Adds "Exclude from deletion" to the context menu of a device folder. A folder protected by an excluded parent
-	 * folder shows the item checked but disabled; the exclusion can only be removed at the parent folder.
-	 * Exclusions are stored per device and therefore only possible for devices with an assigned share.
+	 * Adds "Exclude from deletion" to the context menu of a device folder. A folder protected by a parent
+	 * folder shows the item checked but disabled; that protection can only be changed at the parent folder.
+	 * For folders excluded by default in {@link StoragePaths}, unchecking lifts the default for this device
+	 * and checking restores it.
+	 * Changes are stored per device and therefore only possible for devices with an assigned share.
 	 */
 	private void addDeviceFolderMenuItems(final JPopupMenu menu, final TreeEntry folder) {
 		final MtpDevice device = currentDevice;
@@ -1018,16 +1024,19 @@ public class HandyBackup extends UpdateableGuiApplication {
 			return;
 		}
 		final HandyBackupConfiguration.DeviceAssignment assignment = configuration.getAssignment(device.serialNumber());
-		final String exclusion = assignment == null ? null : assignment.getDeleteExclusion(path);
-		final boolean inherited = exclusion != null && !exclusion.equalsIgnoreCase(path);
+		final String exclusion = configuration.getDeleteExclusion(device.serialNumber(), path);
+		final String parentExclusion = configuration.getDeleteExclusion(device.serialNumber(), HandyBackupConfiguration.getParentDevicePath(path));
+		final boolean isDefault = HandyBackupConfiguration.isDefaultDeleteProtected(path);
 
 		final JCheckBoxMenuItem excludeItem = new JCheckBoxMenuItem(LangResources.get("excludeFromDeletionMenuItem"), exclusion != null);
 		if (assignment == null) {
 			excludeItem.setEnabled(false);
 			excludeItem.setToolTipText(LangResources.get("excludeFromDeletionNoShare"));
-		} else if (inherited) {
+		} else if (parentExclusion != null) {
 			excludeItem.setEnabled(false);
-			excludeItem.setToolTipText(LangResources.get("excludeFromDeletionInherited", exclusion));
+			excludeItem.setToolTipText(LangResources.get("excludeFromDeletionInherited", parentExclusion));
+		} else if (isDefault) {
+			excludeItem.setToolTipText(LangResources.get(exclusion != null ? "excludeFromDeletionDefaultTooltip" : "excludeFromDeletionReleasedTooltip"));
 		}
 		excludeItem.addActionListener(action -> setDeleteExcluded(device, path, excludeItem.isSelected()));
 		menu.add(excludeItem);
@@ -1042,12 +1051,19 @@ public class HandyBackup extends UpdateableGuiApplication {
 		} catch (final Exception e) {
 			showErrorDialog(this, LangResources.get("configurationSaveFailed", HandyBackupConfiguration.getDevicesFile()), e);
 		}
-		log(LangResources.get(excluded ? "deleteExclusionAdded" : "deleteExclusionRemoved", path, device.name()));
+		final String logKey;
+		if (HandyBackupConfiguration.isDefaultDeleteProtected(path)) {
+			logKey = excluded ? "deleteDefaultExclusionRestored" : "deleteDefaultExclusionLifted";
+		} else {
+			logKey = excluded ? "deleteExclusionAdded" : "deleteExclusionRemoved";
+		}
+		log(LangResources.get(logKey, path, device.name()));
 		deviceTree.repaint();
 	}
 
 	/**
-	 * Marks excluded folders with a text and all protected folders and files with a color. Called while rendering.
+	 * Marks excluded folders with a text and all protected folders and files with a color.
+	 * Folders whose default exclusion was lifted are marked as well. Called while rendering.
 	 */
 	private LazyTree.Decoration decorateDeviceEntry(final TreeEntry entry) {
 		final MtpDevice device = currentDevice;
@@ -1056,9 +1072,13 @@ public class HandyBackup extends UpdateableGuiApplication {
 		}
 		final String exclusion = configuration.getDeleteExclusion(device.serialNumber(), entry.path());
 		if (exclusion == null) {
+			if (entry.directory() && configuration.isDeleteReleased(device.serialNumber(), entry.path())) {
+				return new LazyTree.Decoration(LangResources.get("treeDeleteReleased"), LangResources.get("treeDeleteReleasedTooltip"), DELETE_RELEASED_COLOR);
+			}
 			return null;
 		} else if (entry.directory() && exclusion.equalsIgnoreCase(HandyBackupConfiguration.normalizeDevicePath(entry.path()))) {
-			return new LazyTree.Decoration(LangResources.get("treeDeleteProtected"), LangResources.get("treeDeleteProtectedTooltip"), DELETE_PROTECTED_COLOR);
+			final String tooltipKey = HandyBackupConfiguration.isDefaultDeleteProtected(exclusion) ? "treeDeleteProtectedDefaultTooltip" : "treeDeleteProtectedTooltip";
+			return new LazyTree.Decoration(LangResources.get("treeDeleteProtected"), LangResources.get(tooltipKey), DELETE_PROTECTED_COLOR);
 		} else {
 			return new LazyTree.Decoration(null, LangResources.get("treeDeleteProtectedBy", exclusion), DELETE_PROTECTED_COLOR);
 		}

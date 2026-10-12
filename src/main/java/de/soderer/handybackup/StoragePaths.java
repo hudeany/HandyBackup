@@ -19,6 +19,9 @@ public class StoragePaths {
 	 * Folders to back up, relative to a storage of the device. Subfolders are included.
 	 * For overlapping entries the most specific one decides which files are backed up
 	 * (e.g. "WhatsApp Images" only images, although "/Android/media" also includes videos).
+	 *
+	 * Entries marked with {@link StoragePath#withDeleteProtected(boolean)} are excluded from the deletion
+	 * after a backup by default (including subfolders). The default can be lifted per device in the device tree.
 	 */
 	public static final List<StoragePath> PATHS = List.of(
 		new StoragePath("/DCIM", IMAGES, VIDEOS),
@@ -29,24 +32,45 @@ public class StoragePaths {
 		new StoragePath("/Pictures/WhatsApp", IMAGES),
 		new StoragePath("/Pictures/Telegram", IMAGES),
 		new StoragePath("/Pictures/Instagram", IMAGES),
-		new StoragePath("/Music", MUSIC),
-		new StoragePath("/Ringtones", MUSIC),
-		new StoragePath("/Notifications", MUSIC),
-		new StoragePath("/Movies", VIDEOS),
-		new StoragePath("/Movies/Telegram", VIDEOS),
 		new StoragePath("/Movies", VIDEOS),
 		new StoragePath("/Movies/Telegram", VIDEOS),
 		new StoragePath("/Download", ALL),
 		new StoragePath("/Downloads", ALL),
+		new StoragePath("/Documents", ALL),
 		new StoragePath("/Android/media", IMAGES, VIDEOS),
 		new StoragePath("/Android/media/com.whatsapp/WhatsApp/Media", IMAGES, VIDEOS),
 		new StoragePath("/Android/media/com.whatsapp/WhatsApp/Media/WhatsApp Images", IMAGES),
 		new StoragePath("/Android/media/com.whatsapp/WhatsApp/Media/WhatsApp Video", VIDEOS),
-		new StoragePath("/Documents", ALL),
-		new StoragePath("/Podcasts", ALL),
-		new StoragePath("/Recordings", ALL),
-		new StoragePath("/Audiobooks", ALL)
+
+		new StoragePath("/Music", MUSIC).withDeleteProtected(true),
+		new StoragePath("/Ringtones", MUSIC).withDeleteProtected(true),
+		new StoragePath("/Notifications", MUSIC).withDeleteProtected(true),
+		new StoragePath("/Podcasts", ALL).withDeleteProtected(true),
+		new StoragePath("/Recordings", ALL).withDeleteProtected(true),
+		new StoragePath("/Audiobooks", ALL).withDeleteProtected(true)
 	);
+
+	/**
+	 * Checks whether exactly this folder is excluded from the deletion by default (case-insensitive).
+	 * Subfolders are not reported here; the caller checks the parent folders itself.
+	 *
+	 * @param relativePath folder path relative to the storage, e.g. "/Documents"
+	 */
+	public static boolean isDeleteProtectedByDefault(final String relativePath) {
+		if (relativePath == null) {
+			return false;
+		}
+		String path = relativePath.trim().replace('\\', '/');
+		while (path.length() > 1 && path.endsWith("/")) {
+			path = path.substring(0, path.length() - 1);
+		}
+		for (final StoragePath storagePath : PATHS) {
+			if (storagePath.isDeleteProtected() && storagePath.getPath().equalsIgnoreCase(path)) {
+				return true;
+			}
+		}
+		return false;
+	}
 
 	/**
 	 * Returns the most specific entry of {@link #PATHS} containing the given path (case-insensitive),
