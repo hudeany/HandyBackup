@@ -2,6 +2,7 @@ package de.soderer.handybackup;
 
 import static de.soderer.handybackup.BackupType.ALL;
 import static de.soderer.handybackup.BackupType.IMAGES;
+import static de.soderer.handybackup.BackupType.MUSIC;
 import static de.soderer.handybackup.BackupType.VIDEOS;
 
 import java.util.List;
@@ -28,6 +29,11 @@ public class StoragePaths {
 		new StoragePath("/Pictures/WhatsApp", IMAGES),
 		new StoragePath("/Pictures/Telegram", IMAGES),
 		new StoragePath("/Pictures/Instagram", IMAGES),
+		new StoragePath("/Music", MUSIC),
+		new StoragePath("/Ringtones", MUSIC),
+		new StoragePath("/Notifications", MUSIC),
+		new StoragePath("/Movies", VIDEOS),
+		new StoragePath("/Movies/Telegram", VIDEOS),
 		new StoragePath("/Movies", VIDEOS),
 		new StoragePath("/Movies/Telegram", VIDEOS),
 		new StoragePath("/Download", ALL),
@@ -36,7 +42,10 @@ public class StoragePaths {
 		new StoragePath("/Android/media/com.whatsapp/WhatsApp/Media", IMAGES, VIDEOS),
 		new StoragePath("/Android/media/com.whatsapp/WhatsApp/Media/WhatsApp Images", IMAGES),
 		new StoragePath("/Android/media/com.whatsapp/WhatsApp/Media/WhatsApp Video", VIDEOS),
-		new StoragePath("/Documents", ALL)
+		new StoragePath("/Documents", ALL),
+		new StoragePath("/Podcasts", ALL),
+		new StoragePath("/Recordings", ALL),
+		new StoragePath("/Audiobooks", ALL)
 	);
 
 	/**

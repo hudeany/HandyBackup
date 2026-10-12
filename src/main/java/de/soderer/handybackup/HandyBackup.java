@@ -1121,7 +1121,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 
 	private void confirmManualDeletion(final MtpDevice device, final List<ManualDeletionItem> items, final String indexProblem) {
 		if (currentDevice != device) {
-			finishManualDeletion(null);
+			finishManualDeletion(null, null);
 			return;
 		}
 
@@ -1173,7 +1173,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 		final int answer = JOptionPane.showOptionDialog(this, question.toString(), LangResources.get("deleteFromPhone"), JOptionPane.YES_NO_OPTION,
 			JOptionPane.WARNING_MESSAGE, null, options, options[1]);
 		if (answer != 0) {
-			finishManualDeletion(null);
+			finishManualDeletion(null, null);
 			return;
 		}
 
@@ -1203,20 +1203,21 @@ public class HandyBackup extends UpdateableGuiApplication {
 				if (finalErrors > 0) {
 					JOptionPane.showMessageDialog(this, LangResources.get("filesCouldNotBeDeleted", finalErrors), APPLICATION_NAME, JOptionPane.WARNING_MESSAGE);
 				}
-				finishManualDeletion(deviceTree);
+				finishManualDeletion(deviceTree, items.stream().map(ManualDeletionItem::entry).toList());
 			});
 		});
 	}
 
 	/**
-	 * @param treeToRefresh tree to reload after files were deleted, null if nothing was deleted
+	 * @param treeToRefresh  tree to reload after files were deleted, null if nothing was deleted
+	 * @param deletedEntries entries selected for deletion; only their folders are reloaded, so the rest of the tree stays as it is
 	 */
-	private void finishManualDeletion(final LazyTree treeToRefresh) {
+	private void finishManualDeletion(final LazyTree treeToRefresh, final List<TreeEntry> deletedEntries) {
 		setIdle();
 		backupActive = false;
 		updateControls();
 		if (treeToRefresh != null) {
-			treeToRefresh.refresh();
+			treeToRefresh.refreshParentsOf(deletedEntries);
 		}
 	}
 
@@ -1300,7 +1301,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 
 	private void confirmShareDeletion(final ShareDefinition share, final List<ShareDeletionItem> items, final String indexProblem) {
 		if (share != getAssignedShare()) {
-			finishManualDeletion(null);
+			finishManualDeletion(null, null);
 			return;
 		}
 
@@ -1351,7 +1352,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 		final int answer = JOptionPane.showOptionDialog(this, question.toString(), LangResources.get("deleteFromBackup"), JOptionPane.YES_NO_OPTION,
 			JOptionPane.WARNING_MESSAGE, null, options, options[1]);
 		if (answer != 0) {
-			finishManualDeletion(null);
+			finishManualDeletion(null, null);
 			return;
 		}
 
@@ -1399,7 +1400,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 				if (finalErrors > 0 || finalIndexError != null) {
 					JOptionPane.showMessageDialog(this, LangResources.get("deleteErrorsOccurred"), APPLICATION_NAME, JOptionPane.WARNING_MESSAGE);
 				}
-				finishManualDeletion(shareTree);
+				finishManualDeletion(shareTree, items.stream().map(ShareDeletionItem::entry).toList());
 			});
 		});
 	}

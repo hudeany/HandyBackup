@@ -15,6 +15,10 @@ public enum BackupType {
 		"jpg", "jpeg", "png", "heic", "heif", "gif", "webp", "bmp",
 		"dng"), // RAW images from Pixel/Samsung camera apps
 
+	/** Music files */
+	MUSIC(
+		"mp3", "ogg"),
+
 	/** Video files */
 	VIDEOS(
 		"mp4", "mov", "3gp", "3g2", "mkv", "webm", "m4v", "avi"),

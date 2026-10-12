@@ -9,8 +9,13 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.Enumeration;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.function.BiConsumer;
@@ -66,6 +71,12 @@ public class LazyTree extends JTree {
 	private Consumer<List<TreeEntry>> fileDeleteHandler;
 	private BiConsumer<JPopupMenu, TreeEntry> folderMenuProvider;
 	private Function<TreeEntry, Decoration> decorator;
+
+	/**
+	 * Paths of folders that were expanded before their parent was reloaded. They are expanded again as soon as
+	 * they appear after loading, level by level, because deeper folders only exist after their parent was loaded.
+	 */
+	private final Set<String> pendingExpansions = new HashSet<>();
 
 	public LazyTree(final ExecutorService executor, final String emptyText) {
 		super(new DefaultTreeModel(new DefaultMutableTreeNode(emptyText)));
@@ -236,6 +247,7 @@ public class LazyTree extends JTree {
 	 */
 	public void setRoot(final TreeEntry rootEntry, final ChildLoader loader) {
 		childLoader = loader;
+		pendingExpansions.clear();
 		final EntryNode root = new EntryNode(rootEntry);
 		getModel().setRoot(root);
 		// JTree marks a new root as expanded without firing treeWillExpand, so load its children explicitly
@@ -248,6 +260,7 @@ public class LazyTree extends JTree {
 	 */
 	public void clear(final String text) {
 		childLoader = null;
+		pendingExpansions.clear();
 		getModel().setRoot(new DefaultMutableTreeNode(text == null ? emptyText : text));
 	}
 
@@ -257,6 +270,34 @@ public class LazyTree extends JTree {
 	public void refresh() {
 		if (getModel().getRoot() instanceof final EntryNode root) {
 			reload(root);
+		}
+	}
+
+	/**
+	 * Reloads only the folders containing the given entries (e.g. after these entries were deleted), keeping
+	 * the expansion state of the rest of the tree. Reloads the whole tree if none of the folders is found.
+	 */
+	public void refreshParentsOf(final Collection<TreeEntry> entries) {
+		if (!(getModel().getRoot() instanceof final EntryNode root)) {
+			return;
+		}
+		final Set<String> entryPaths = new HashSet<>();
+		for (final TreeEntry entry : entries) {
+			entryPaths.add(entry.path());
+		}
+		final Set<EntryNode> parents = new LinkedHashSet<>();
+		final Enumeration<?> nodes = root.breadthFirstEnumeration();
+		while (nodes.hasMoreElements()) {
+			if (nodes.nextElement() instanceof final EntryNode node && entryPaths.contains(node.entry.path()) && node.getParent() instanceof final EntryNode parent) {
+				parents.add(parent);
+			}
+		}
+		if (parents.isEmpty()) {
+			refresh();
+		} else {
+			for (final EntryNode parent : parents) {
+				reload(parent);
+			}
 		}
 	}
 
@@ -301,11 +342,32 @@ public class LazyTree extends JTree {
 			return;
 		}
 
-		// Remember expanded subfolders, so a refresh keeps them open
-		final List<String> expandedPaths = new ArrayList<>();
-		for (int i = 0; i < node.getChildCount(); i++) {
-			if (node.getChildAt(i) instanceof final EntryNode child && child.loadStarted && isExpanded(new TreePath(child.getPath()))) {
-				expandedPaths.add(child.entry.path());
+		// Remember all expanded subfolders at any depth, so a refresh keeps them open
+		final TreePath nodePath = new TreePath(node.getPath());
+		final Enumeration<TreePath> expandedDescendants = getExpandedDescendants(nodePath);
+		if (expandedDescendants != null) {
+			while (expandedDescendants.hasMoreElements()) {
+				final TreePath expandedPath = expandedDescendants.nextElement();
+				if (expandedPath.getLastPathComponent() != node && expandedPath.getLastPathComponent() instanceof final EntryNode expandedNode) {
+					pendingExpansions.add(expandedNode.entry.path());
+				}
+			}
+		}
+
+		// Remember the selection below this folder, so deleting several files one after another stays convenient
+		final List<String> selectedPaths = new ArrayList<>();
+		int firstSelectedIndex = -1;
+		final TreePath[] selectionPaths = getSelectionPaths();
+		if (selectionPaths != null) {
+			for (final TreePath selectionPath : selectionPaths) {
+				if (selectionPath.getParentPath() != null && selectionPath.getParentPath().getLastPathComponent() == node
+					&& selectionPath.getLastPathComponent() instanceof final EntryNode selectedNode) {
+					selectedPaths.add(selectedNode.entry.path());
+					final int index = node.getIndex(selectedNode);
+					if (firstSelectedIndex < 0 || index < firstSelectedIndex) {
+						firstSelectedIndex = index;
+					}
+				}
 			}
 		}
 
@@ -321,9 +383,32 @@ public class LazyTree extends JTree {
 		}
 		getModel().nodeStructureChanged(node);
 
+		final List<TreePath> newSelection = new ArrayList<>();
 		for (int i = 0; i < node.getChildCount(); i++) {
-			if (node.getChildAt(i) instanceof final EntryNode child && expandedPaths.contains(child.entry.path())) {
-				expandPath(new TreePath(child.getPath()));
+			if (node.getChildAt(i) instanceof final EntryNode child) {
+				if (pendingExpansions.remove(child.entry.path())) {
+					// Loads the child's content, which then expands its own remembered subfolders
+					expandPath(new TreePath(child.getPath()));
+				}
+				if (selectedPaths.contains(child.entry.path())) {
+					newSelection.add(new TreePath(child.getPath()));
+				}
+			}
+		}
+
+		if (!selectedPaths.isEmpty()) {
+			if (newSelection.isEmpty() && node.getChildCount() > 0) {
+				// The selected entries are gone (deleted): select the entry that took their place
+				final int index = Math.min(firstSelectedIndex, node.getChildCount() - 1);
+				if (node.getChildAt(index) instanceof final EntryNode neighbour) {
+					newSelection.add(new TreePath(neighbour.getPath()));
+				}
+			}
+			if (newSelection.isEmpty()) {
+				setSelectionPath(nodePath);
+			} else {
+				setSelectionPaths(newSelection.toArray(new TreePath[0]));
+				scrollPathToVisible(newSelection.get(0));
 			}
 		}
 	}
