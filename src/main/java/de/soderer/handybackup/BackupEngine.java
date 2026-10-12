@@ -13,6 +13,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -36,7 +37,8 @@ import de.soderer.utilities.remote.SmbConnection;
 
 /**
  * Backs up files of one MTP device into its assigned share. Which files are backed up is defined
- * per folder in {@link StoragePaths} (images, videos, contacts or all files).
+ * per folder in {@link StoragePaths} (images, videos, contacts or all files) and by the folders added
+ * for the device ({@link BackupFolder}); for overlapping folders the most specific one decides.
  *
  * Target layout: &lt;basePath&gt;/&lt;year&gt;/&lt;year-month&gt;/&lt;original file name&gt;
  * - all sources (camera, WhatsApp, screenshots ...) mixed by date
@@ -86,6 +88,7 @@ public class BackupEngine {
 	private final SmbConnection smbConnection;
 	private final ShareDefinition share;
 	private final BackupListener listener;
+	private final List<BackupFolder> customBackupFolders;
 	private volatile boolean cancelled = false;
 
 	/** Results of the last {@link #run()}, needed for the deletion phase */
@@ -96,8 +99,13 @@ public class BackupEngine {
 	private volatile boolean scanFinished = false;
 	private volatile int savedCount = 0;
 
-	public BackupEngine(final MtpFileSystem mtpFileSystem, final MtpDevice device, final SmbConnection smbConnection, final ShareDefinition share, final BackupListener listener) {
+	/**
+	 * @param customBackupFolders folders added for this device in addition to {@link StoragePaths}, may be empty;
+	 *                            a copy is kept, so changes during the backup take effect with the next backup
+	 */
+	public BackupEngine(final MtpFileSystem mtpFileSystem, final MtpDevice device, final SmbConnection smbConnection, final ShareDefinition share, final Collection<BackupFolder> customBackupFolders, final BackupListener listener) {
 		this.mtpFileSystem = mtpFileSystem;
+		this.customBackupFolders = customBackupFolders == null ? List.of() : List.copyOf(customBackupFolders);
 		this.device = device;
 		this.smbConnection = smbConnection;
 		this.share = share;
@@ -146,7 +154,7 @@ public class BackupEngine {
 		scanFinished = false;
 		savedCount = 0;
 		listener.onLog(LangResources.get("scanningPhoneFolders"));
-		final List<MtpFile> mediaFiles = scanMediaFiles(mtpFileSystem, () -> cancelled, listener);
+		final List<MtpFile> mediaFiles = scanMediaFiles(mtpFileSystem, customBackupFolders, () -> cancelled, listener);
 		scannedFiles = mediaFiles;
 		scanFinished = true;
 		listener.onLog(LangResources.get("mediaFilesFound", mediaFiles.size()));
@@ -423,16 +431,17 @@ public class BackupEngine {
 	}
 
 	/**
-	 * Collects all files to back up below the folders of {@link StoragePaths} on all storages
-	 * of the device. Overlapping entries (e.g. "/DCIM" and "/DCIM/Camera") are scanned only once;
+	 * Collects all files to back up below the folders of {@link StoragePaths} and the folders added for the device
+	 * on all storages of the device. Overlapping entries (e.g. "/DCIM" and "/DCIM/Camera") are scanned only once;
 	 * the most specific entry decides which files of a folder are backed up.
+	 * A folder added for the device is scanned even if its own name would exclude it (e.g. a hidden folder),
+	 * because it was chosen explicitly; excluded folders below it are skipped as usual.
 	 */
-	public static List<MtpFile> scanMediaFiles(final MtpFileSystem mtpFileSystem, final BooleanSupplier cancelCheck, final BackupListener listener) throws IOException {
+	public static List<MtpFile> scanMediaFiles(final MtpFileSystem mtpFileSystem, final Collection<BackupFolder> customBackupFolders, final BooleanSupplier cancelCheck, final BackupListener listener) throws IOException {
 		final Map<String, MtpFile> result = new LinkedHashMap<>();
 		final Set<String> visitedFolders = new HashSet<>();
 		for (final MtpFile storage : mtpFileSystem.list("/")) {
-			for (final StoragePath storagePath : StoragePaths.PATHS) {
-				final String startPath = storage.path() + storagePath.getPath();
+			for (final String startPath : StoragePaths.getStartFolders(storage.path(), customBackupFolders)) {
 				if (cancelCheck.getAsBoolean()) {
 					return new ArrayList<>(result.values());
 				}
@@ -457,7 +466,7 @@ public class BackupEngine {
 							if (!isExcludedFolder(entry) && visitedFolders.add(entry.path().toLowerCase(Locale.ROOT))) {
 								foldersToScan.push(entry);
 							}
-						} else if (isBackupFile(storage, entry)) {
+						} else if (StoragePaths.isBackupFile(entry.path(), customBackupFolders)) {
 							result.putIfAbsent(entry.path(), entry);
 						}
 					}
@@ -468,29 +477,59 @@ public class BackupEngine {
 	}
 
 	/**
-	 * Checks whether a file on the given storage is backed up according to {@link StoragePaths}.
-	 * Device paths start with the storage name: "/&lt;storage&gt;/DCIM/Camera/IMG_0001.jpg".
-	 */
-	public static boolean isBackupFile(final MtpFile storage, final MtpFile file) {
-		final String storagePrefix = storage.path();
-		final String filePath = file.path();
-		if (!filePath.startsWith(storagePrefix + "/")) {
-			return false;
-		} else {
-			return StoragePaths.isBackupFile(filePath.substring(storagePrefix.length()));
-		}
-	}
-
-	/**
 	 * Hidden folders (".thumbnails", ".trashed-...", WhatsApp ".Statuses") and WhatsApp's
 	 * "Sent" and "Private" folders are not backed up.
 	 */
 	public static boolean isExcludedFolder(final MtpFile folder) {
-		final String name = folder.name();
+		return isExcludedFolder(folder.name(), folder.path());
+	}
+
+	private static boolean isExcludedFolder(final String name, final String path) {
 		if (name.startsWith(".")) {
 			return true;
 		}
-		return EXCLUDED_WHATSAPP_FOLDERS.contains(name.toLowerCase(Locale.ROOT)) && folder.path().toLowerCase(Locale.ROOT).contains("/whatsapp");
+		return EXCLUDED_WHATSAPP_FOLDERS.contains(name.toLowerCase(Locale.ROOT)) && path.toLowerCase(Locale.ROOT).contains("/whatsapp");
+	}
+
+	/**
+	 * Checks whether the scan of {@link #scanMediaFiles(MtpFileSystem, Collection, BooleanSupplier, BackupListener)}
+	 * reaches the given device folder: it must be a start folder or lie below one, without an excluded folder
+	 * ({@link #isExcludedFolder(MtpFile)}) in between. Used to mark backed-up folders in the device tree.
+	 *
+	 * @param devicePath MTP path of the folder including the storage
+	 */
+	public static boolean isScannedFolder(final String devicePath, final Collection<BackupFolder> customBackupFolders) {
+		final String path = HandyBackupConfiguration.normalizeDevicePath(devicePath);
+		final String storage = StoragePaths.getStorageOf(path);
+		if (path == null || storage == null) {
+			return false;
+		}
+		final String lowerPath = path.toLowerCase(Locale.ROOT);
+		for (final String startFolder : StoragePaths.getStartFolders(storage, customBackupFolders)) {
+			final String lowerStart = startFolder.toLowerCase(Locale.ROOT);
+			if (lowerPath.equals(lowerStart)) {
+				return true;
+			} else if (lowerPath.startsWith(lowerStart + "/") && !containsExcludedFolder(path, startFolder.length())) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Whether one of the folders of the path after the given start index is excluded by {@link #isExcludedFolder(MtpFile)}.
+	 */
+	private static boolean containsExcludedFolder(final String path, final int startIndex) {
+		int separatorIndex = path.indexOf('/', startIndex);
+		while (separatorIndex >= 0) {
+			final int nextSeparatorIndex = path.indexOf('/', separatorIndex + 1);
+			final String folderPath = nextSeparatorIndex < 0 ? path : path.substring(0, nextSeparatorIndex);
+			if (isExcludedFolder(folderPath.substring(separatorIndex + 1), folderPath)) {
+				return true;
+			}
+			separatorIndex = nextSeparatorIndex;
+		}
+		return false;
 	}
 
 	/**

@@ -263,7 +263,7 @@ public class HandyBackupCli {
 				SmbConnection smbConnection = new SmbConnection(share.getHostname(), share.getPort(), share.getUsername(), share.getSharename(), password)) {
 			Arrays.fill(password, '\0');
 
-			final BackupEngine engine = new BackupEngine(fileSystem, device, smbConnection, share, createListener());
+			final BackupEngine engine = new BackupEngine(fileSystem, device, smbConnection, share, configuration.getBackupFolders(device.serialNumber()), createListener());
 			runningEngine = engine;
 			final BackupEngine.BackupResult result;
 			try {

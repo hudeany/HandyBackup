@@ -6,6 +6,7 @@ import java.awt.Component;
 import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.GridLayout;
 import java.awt.Insets;
 import java.awt.Window;
 import java.awt.event.WindowAdapter;
@@ -25,10 +26,14 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.StringJoiner;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -39,11 +44,13 @@ import javax.swing.DefaultComboBoxModel;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JComboBox;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JList;
+import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
@@ -94,6 +101,10 @@ import de.soderer.utilities.swing.UpdateableGuiApplication;
  * Single device folders (including their subfolders) can be excluded from this deletion via the context menu
  * of the device tree; excluded folders are marked in the tree. Some folders of {@link StoragePaths} are excluded
  * by default; this default can be lifted per device in the same way.
+ *
+ * Further device folders can be added to the backup per device via the context menu of the device tree, together
+ * with the file types to back up from them ({@link BackupFolder}). Such a folder may also be a default folder of
+ * {@link StoragePaths} or one of its subfolders; the most specific folder decides which files are backed up.
  *
  * All MTP and SMB operations run one after another in a single background thread.
  */
@@ -334,6 +345,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 		deviceTree.setFileDeleteHandler(this::deleteDeviceFiles);
 		deviceTree.setFolderMenuProvider(this::addDeviceFolderMenuItems);
 		deviceTree.setDecorator(this::decorateDeviceEntry);
+		deviceTree.setBackupInfoProvider(this::describeDeviceBackupFolder);
 		shareTree.setFileDeleteHandler(this::deleteShareFiles);
 		shareTree.setFileOpenHandler(this::openShareFile);
 		refreshDevicesButton.addActionListener(event -> refreshDevices());
@@ -546,27 +558,16 @@ public class HandyBackup extends UpdateableGuiApplication {
 		});
 	}
 
-	/** Called in the IO thread */
+	/**
+	 * Called in the IO thread. Whether a folder is backed up is not stored in the entries, but decided while rendering
+	 * by {@link #describeDeviceBackupFolder(TreeEntry)}, so added or removed backup folders are shown immediately.
+	 */
 	private static List<TreeEntry> loadDeviceFolder(final MtpFileSystem fileSystem, final TreeEntry folder) throws Exception {
 		final List<TreeEntry> result = new ArrayList<>();
 		for (final MtpFile file : fileSystem.list(folder.path())) {
-			result.add(new TreeEntry(file.name(), file.path(), file.directory(), file.size(), file.modified(),
-				file.directory() && isBackupRelevant(file)));
+			result.add(new TreeEntry(file.name(), file.path(), file.directory(), file.size(), file.modified(), false));
 		}
 		return result;
-	}
-
-	/**
-	 * Checks whether a device folder is (part of) a folder listed in {@link StoragePaths}.
-	 * Device paths start with the storage name: "/&lt;storage&gt;/DCIM/Camera".
-	 */
-	private static boolean isBackupRelevant(final MtpFile folder) {
-		final String path = folder.path();
-		final int storageEnd = path.indexOf('/', 1);
-		if (storageEnd < 0 || BackupEngine.isExcludedFolder(folder)) {
-			return false;
-		}
-		return StoragePaths.findStoragePath(path.substring(storageEnd)) != null;
 	}
 
 	/** Called in the IO thread */
@@ -849,7 +850,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 				if (currentFileSystem == null) {
 					throw new Exception(LangResources.get("deviceNotOpen"));
 				}
-				engine = new BackupEngine(currentFileSystem, device, getSmbConnection(share), share, listener);
+				engine = new BackupEngine(currentFileSystem, device, getSmbConnection(share), share, configuration.getBackupFolders(device.serialNumber()), listener);
 				runningBackup = engine;
 				if (cancelRequested) {
 					engine.cancel();
@@ -1040,6 +1041,8 @@ public class HandyBackup extends UpdateableGuiApplication {
 		}
 		excludeItem.addActionListener(action -> setDeleteExcluded(device, path, excludeItem.isSelected()));
 		menu.add(excludeItem);
+
+		addBackupFolderMenuItems(menu, device, assignment, path);
 	}
 
 	private void setDeleteExcluded(final MtpDevice device, final String path, final boolean excluded) {
@@ -1081,6 +1084,189 @@ public class HandyBackup extends UpdateableGuiApplication {
 			return new LazyTree.Decoration(LangResources.get("treeDeleteProtected"), LangResources.get(tooltipKey), DELETE_PROTECTED_COLOR);
 		} else {
 			return new LazyTree.Decoration(null, LangResources.get("treeDeleteProtectedBy", exclusion), DELETE_PROTECTED_COLOR);
+		}
+	}
+
+	// ---------------------------------------------------------------- folders added to the backup
+
+	/**
+	 * Adds "Add to backup ..." to the context menu of a device folder, or "Change file types ..." and
+	 * "Remove from backup" for a folder already added for this device.
+	 * Changes are stored per device and therefore only possible for devices with an assigned share.
+	 */
+	private void addBackupFolderMenuItems(final JPopupMenu menu, final MtpDevice device, final HandyBackupConfiguration.DeviceAssignment assignment, final String path) {
+		if (StoragePaths.getStorageOf(path) == null) {
+			return;
+		}
+		menu.addSeparator();
+		final BackupFolder customFolder = assignment == null ? null : assignment.getBackupFolder(path);
+		if (customFolder == null) {
+			final JMenuItem addItem = new JMenuItem(LangResources.get("addBackupFolderMenuItem"));
+			if (assignment == null) {
+				addItem.setEnabled(false);
+				addItem.setToolTipText(LangResources.get("excludeFromDeletionNoShare"));
+			} else {
+				final List<BackupFolder> backupFolders = assignment.backupFolders();
+				final BackupFolder effectiveFolder = BackupEngine.isScannedFolder(path, backupFolders) ? StoragePaths.findBackupFolder(path, backupFolders) : null;
+				if (effectiveFolder != null) {
+					addItem.setToolTipText(LangResources.get("addBackupFolderAlreadyBackedUpTooltip", describeBackupTypes(effectiveFolder.backupTypes()), effectiveFolder.devicePath()));
+				}
+			}
+			addItem.addActionListener(action -> editBackupFolder(device, path));
+			menu.add(addItem);
+		} else {
+			final JMenuItem changeItem = new JMenuItem(LangResources.get("changeBackupFolderMenuItem"));
+			changeItem.setToolTipText(LangResources.get("backupFolderCurrentTypes", describeBackupTypes(customFolder.backupTypes())));
+			changeItem.addActionListener(action -> editBackupFolder(device, path));
+			menu.add(changeItem);
+			final JMenuItem removeItem = new JMenuItem(LangResources.get("removeBackupFolderMenuItem"));
+			removeItem.addActionListener(action -> removeBackupFolder(device, path));
+			menu.add(removeItem);
+		}
+	}
+
+	/**
+	 * Asks for the file types of a device folder and adds the folder to the backup of the device or changes its file types.
+	 */
+	private void editBackupFolder(final MtpDevice device, final String path) {
+		final HandyBackupConfiguration.DeviceAssignment assignment = configuration.getAssignment(device.serialNumber());
+		if (assignment == null) {
+			return;
+		}
+		final BackupFolder customFolder = assignment.getBackupFolder(path);
+		final Set<BackupType> initialTypes;
+		if (customFolder != null) {
+			initialTypes = customFolder.backupTypes();
+		} else {
+			// Offer the file types that currently apply to the folder, if it is already backed up
+			final BackupFolder effectiveFolder = BackupEngine.isScannedFolder(path, assignment.backupFolders()) ? StoragePaths.findBackupFolder(path, assignment.backupFolders()) : null;
+			initialTypes = effectiveFolder == null ? Set.of() : effectiveFolder.backupTypes();
+		}
+
+		final Set<BackupType> backupTypes = showBackupTypesDialog(path, initialTypes);
+		if (backupTypes == null || !configuration.setBackupFolder(device.serialNumber(), path, backupTypes)) {
+			return;
+		}
+		saveDeviceConfiguration();
+		log(LangResources.get(customFolder == null ? "backupFolderAdded" : "backupFolderChanged", path, describeBackupTypes(backupTypes), device.name()));
+		deviceTree.repaint();
+	}
+
+	private void removeBackupFolder(final MtpDevice device, final String path) {
+		if (!configuration.removeBackupFolder(device.serialNumber(), path)) {
+			return;
+		}
+		saveDeviceConfiguration();
+		final List<BackupFolder> backupFolders = configuration.getBackupFolders(device.serialNumber());
+		final BackupFolder remainingFolder = BackupEngine.isScannedFolder(path, backupFolders) ? StoragePaths.findBackupFolder(path, backupFolders) : null;
+		if (remainingFolder == null) {
+			log(LangResources.get("backupFolderRemoved", path, device.name()));
+		} else {
+			log(LangResources.get("backupFolderRemovedStillBackedUp", path, device.name(), describeBackupTypes(remainingFolder.backupTypes()), remainingFolder.devicePath()));
+		}
+		deviceTree.repaint();
+	}
+
+	private void saveDeviceConfiguration() {
+		try {
+			configuration.save();
+		} catch (final Exception e) {
+			showErrorDialog(this, LangResources.get("configurationSaveFailed", HandyBackupConfiguration.getDevicesFile()), e);
+		}
+	}
+
+	/**
+	 * Dialog with one checkbox per {@link BackupType}, showing its file extensions. "All files" disables the other checkboxes.
+	 *
+	 * @return the selected types (not empty), null if cancelled
+	 */
+	private Set<BackupType> showBackupTypesDialog(final String path, final Set<BackupType> initialTypes) {
+		final Map<BackupType, JCheckBox> checkBoxes = new EnumMap<>(BackupType.class);
+		final JPanel typePanel = new JPanel(new GridLayout(0, 1, 0, 2));
+		for (final BackupType backupType : BackupType.values()) {
+			final String extensions = backupType.getExtensions().isEmpty() ? "" : " (" + String.join(", ", backupType.getExtensions().stream().sorted().toList()) + ")";
+			final JCheckBox checkBox = new JCheckBox(getBackupTypeName(backupType) + extensions, initialTypes.contains(backupType));
+			checkBoxes.put(backupType, checkBox);
+			typePanel.add(checkBox);
+		}
+		final JCheckBox allCheckBox = checkBoxes.get(BackupType.ALL);
+		final Runnable updateEnabled = () -> {
+			for (final Map.Entry<BackupType, JCheckBox> entry : checkBoxes.entrySet()) {
+				if (entry.getKey() != BackupType.ALL) {
+					entry.getValue().setEnabled(!allCheckBox.isSelected());
+				}
+			}
+		};
+		allCheckBox.addActionListener(event -> updateEnabled.run());
+		updateEnabled.run();
+
+		final JPanel panel = new JPanel(new BorderLayout(0, 8));
+		final JLabel infoLabel = new JLabel("<html>" + LangResources.get("backupTypesDialogText", escapeHtml(path)).replace("\n", "<br>") + "</html>");
+		panel.add(infoLabel, BorderLayout.NORTH);
+		panel.add(typePanel, BorderLayout.CENTER);
+
+		while (true) {
+			final int answer = JOptionPane.showConfirmDialog(this, panel, LangResources.get("backupTypesDialogTitle"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+			if (answer != JOptionPane.OK_OPTION) {
+				return null;
+			}
+			final Set<BackupType> result = EnumSet.noneOf(BackupType.class);
+			if (allCheckBox.isSelected()) {
+				result.add(BackupType.ALL);
+			} else {
+				for (final Map.Entry<BackupType, JCheckBox> entry : checkBoxes.entrySet()) {
+					if (entry.getValue().isSelected()) {
+						result.add(entry.getKey());
+					}
+				}
+			}
+			if (!result.isEmpty()) {
+				return result;
+			}
+			JOptionPane.showMessageDialog(this, LangResources.get("backupTypesNoneSelected"), LangResources.get("backupTypesDialogTitle"), JOptionPane.WARNING_MESSAGE);
+		}
+	}
+
+	private static String getBackupTypeName(final BackupType backupType) {
+		return LangResources.get("backupType_" + backupType.name());
+	}
+
+	private static String describeBackupTypes(final Set<BackupType> backupTypes) {
+		final StringJoiner joiner = new StringJoiner(", ");
+		for (final BackupType backupType : backupTypes) {
+			joiner.add(getBackupTypeName(backupType));
+		}
+		return joiner.toString();
+	}
+
+	private static String escapeHtml(final String text) {
+		return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+	}
+
+	/**
+	 * Decides whether a device folder is backed up (shown bold) and describes its file types for the tooltip:
+	 * null if the folder is not backed up. Called while rendering.
+	 */
+	private String describeDeviceBackupFolder(final TreeEntry entry) {
+		final MtpDevice device = currentDevice;
+		if (device == null || !entry.directory()) {
+			return null;
+		}
+		final List<BackupFolder> backupFolders = configuration.getBackupFolders(device.serialNumber());
+		if (!BackupEngine.isScannedFolder(entry.path(), backupFolders)) {
+			return null;
+		}
+		final BackupFolder backupFolder = StoragePaths.findBackupFolder(entry.path(), backupFolders);
+		if (backupFolder == null) {
+			return null;
+		}
+		final String types = describeBackupTypes(backupFolder.backupTypes());
+		if (!backupFolder.custom()) {
+			return LangResources.get("treeBackupTypesDefault", types, backupFolder.devicePath());
+		} else if (backupFolder.devicePath().equalsIgnoreCase(HandyBackupConfiguration.normalizeDevicePath(entry.path()))) {
+			return LangResources.get("treeBackupTypesCustom", types);
+		} else {
+			return LangResources.get("treeBackupTypesCustomBy", types, backupFolder.devicePath());
 		}
 	}
 

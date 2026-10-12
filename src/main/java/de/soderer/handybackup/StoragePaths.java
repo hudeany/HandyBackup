@@ -5,6 +5,8 @@ import static de.soderer.handybackup.BackupType.IMAGES;
 import static de.soderer.handybackup.BackupType.MUSIC;
 import static de.soderer.handybackup.BackupType.VIDEOS;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 
@@ -22,6 +24,8 @@ public class StoragePaths {
 	 *
 	 * Entries marked with {@link StoragePath#withDeleteProtected(boolean)} are excluded from the deletion
 	 * after a backup by default (including subfolders). The default can be lifted per device in the device tree.
+	 *
+	 * Further folders can be added per device via the context menu of the device tree (see {@link BackupFolder}).
 	 */
 	public static final List<StoragePath> PATHS = List.of(
 		new StoragePath("/DCIM", IMAGES, VIDEOS),
@@ -108,5 +112,87 @@ public class StoragePaths {
 			final int separatorIndex = relativeFilePath.lastIndexOf('/');
 			return storagePath.matches(relativeFilePath.substring(separatorIndex + 1));
 		}
+	}
+
+	/**
+	 * Storage part of a device path: "/&lt;storage&gt;" for "/&lt;storage&gt;/DCIM/Camera", null for null or the device root.
+	 */
+	public static String getStorageOf(final String devicePath) {
+		final String path = HandyBackupConfiguration.normalizeDevicePath(devicePath);
+		if (path == null) {
+			return null;
+		}
+		final int storageEnd = path.indexOf('/', 1);
+		return storageEnd < 0 ? path : path.substring(0, storageEnd);
+	}
+
+	/**
+	 * Returns the most specific backup folder containing the given device path (case-insensitive),
+	 * taking into account the defaults of {@link #PATHS} on every storage and the folders added for the device.
+	 * For equally specific entries the folder added for the device wins, so it can change the file types of a default.
+	 *
+	 * @param devicePath    MTP path including the storage, e.g. "/&lt;storage&gt;/DCIM/Camera/IMG_0001.jpg"
+	 * @param customFolders folders added for the device, may be empty
+	 * @return the deciding folder, null if the path is not below any backup folder
+	 */
+	public static BackupFolder findBackupFolder(final String devicePath, final Collection<BackupFolder> customFolders) {
+		final String path = HandyBackupConfiguration.normalizeDevicePath(devicePath);
+		final String storage = getStorageOf(path);
+		if (path == null || storage == null) {
+			return null;
+		}
+
+		BackupFolder result = null;
+		int resultDepth = -1;
+		final StoragePath storagePath = path.length() > storage.length() ? findStoragePath(path.substring(storage.length())) : null;
+		if (storagePath != null) {
+			result = new BackupFolder(storage + storagePath.getPath(), storagePath.getBackupTypes(), false);
+			resultDepth = storagePath.getPath().length();
+		}
+		if (customFolders != null) {
+			for (final BackupFolder customFolder : customFolders) {
+				final int depth = customFolder.devicePath().length() - storage.length();
+				if (customFolder.contains(path) && depth >= resultDepth) {
+					result = customFolder;
+					resultDepth = depth;
+				}
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Checks whether a file is backed up according to {@link #findBackupFolder(String, Collection)}.
+	 *
+	 * @param deviceFilePath MTP path of the file including the storage
+	 */
+	public static boolean isBackupFile(final String deviceFilePath, final Collection<BackupFolder> customFolders) {
+		final BackupFolder backupFolder = findBackupFolder(deviceFilePath, customFolders);
+		if (backupFolder == null) {
+			return false;
+		} else {
+			return backupFolder.matches(deviceFilePath.substring(deviceFilePath.lastIndexOf('/') + 1));
+		}
+	}
+
+	/**
+	 * Start folders of the scan on one storage: the defaults of {@link #PATHS} followed by the folders added
+	 * for the device on this storage.
+	 *
+	 * @param storage MTP path of the storage, e.g. "/&lt;storage&gt;"
+	 */
+	public static List<String> getStartFolders(final String storage, final Collection<BackupFolder> customFolders) {
+		final List<String> result = new ArrayList<>();
+		for (final StoragePath storagePath : PATHS) {
+			result.add(storage + storagePath.getPath());
+		}
+		if (customFolders != null) {
+			for (final BackupFolder customFolder : customFolders) {
+				if (storage.equalsIgnoreCase(getStorageOf(customFolder.devicePath()))) {
+					result.add(customFolder.devicePath());
+				}
+			}
+		}
+		return result;
 	}
 }

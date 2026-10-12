@@ -71,6 +71,7 @@ public class LazyTree extends JTree {
 	private Consumer<List<TreeEntry>> fileDeleteHandler;
 	private BiConsumer<JPopupMenu, TreeEntry> folderMenuProvider;
 	private Function<TreeEntry, Decoration> decorator;
+	private Function<TreeEntry, String> backupInfoProvider;
 
 	/**
 	 * Paths of folders that were expanded before their parent was reloaded. They are expanded again as soon as
@@ -163,6 +164,17 @@ public class LazyTree extends JTree {
 	 */
 	public void setDecorator(final Function<TreeEntry, Decoration> decorator) {
 		this.decorator = decorator;
+		repaint();
+	}
+
+	/**
+	 * Sets a function deciding whether a folder is backed up, instead of {@link TreeEntry#backupRelevant()}, so changes
+	 * of the backed-up folders are shown without reloading the tree. The function returns null for a folder that is
+	 * not backed up, otherwise a description for the tooltip (e.g. the file types). Called in the event dispatch thread
+	 * while rendering, so it must be fast.
+	 */
+	public void setBackupInfoProvider(final Function<TreeEntry, String> backupInfoProvider) {
+		this.backupInfoProvider = backupInfoProvider;
 		repaint();
 	}
 
@@ -454,12 +466,24 @@ public class LazyTree extends JTree {
 				return this;
 			}
 
-			setFont(tree.getFont().deriveFont(entry.backupRelevant() ? Font.BOLD : Font.PLAIN));
+			final Function<TreeEntry, String> currentBackupInfoProvider = backupInfoProvider;
+			final String backupInfo;
+			if (!entry.directory()) {
+				backupInfo = null;
+			} else if (currentBackupInfoProvider != null) {
+				backupInfo = currentBackupInfoProvider.apply(entry);
+			} else {
+				backupInfo = entry.backupRelevant() ? "" : null;
+			}
+			setFont(tree.getFont().deriveFont(backupInfo != null ? Font.BOLD : Font.PLAIN));
 			String text;
 			String toolTip;
 			if (entry.directory()) {
 				text = entry.name();
-				toolTip = entry.path() + (entry.backupRelevant() ? "  " + LangResources.get("treeBackedUp") : "");
+				toolTip = entry.path() + (backupInfo != null ? "  " + LangResources.get("treeBackedUp") : "");
+				if (backupInfo != null && !backupInfo.isEmpty()) {
+					toolTip += "\n" + backupInfo;
+				}
 			} else {
 				text = entry.name() + "   " + formatSize(entry.size()) + (entry.modified() != null ? "   " + entry.modified().format(dateFormat) : "");
 				toolTip = entry.path();

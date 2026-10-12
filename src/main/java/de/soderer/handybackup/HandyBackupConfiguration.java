@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.UnaryOperator;
 
@@ -33,6 +34,7 @@ import de.soderer.utilities.ConfigurationProperties;
  * Device.&lt;n&gt;.SerialNumber / .DeviceName / .Share / .DeleteAfterDays
  * Device.&lt;n&gt;.DeleteExclusion.&lt;m&gt; (device folders that are never deleted automatically)
  * Device.&lt;n&gt;.DeleteRelease.&lt;m&gt; (device folders whose default exclusion from {@link StoragePaths} is lifted)
+ * Device.&lt;n&gt;.BackupFolder.&lt;m&gt; (device folders backed up in addition to {@link StoragePaths}, "&lt;path&gt;|&lt;TYPE&gt;,&lt;TYPE&gt;", see {@link BackupFolder})
  * </pre>
  * with n, m = 1, 2, 3 ... without gaps.
  */
@@ -55,15 +57,37 @@ public class HandyBackupConfiguration {
 	 *                         automatically, including all subfolders; sorted, without redundant subfolder entries
 	 * @param deleteReleases   device folders excluded by default in {@link StoragePaths}, whose default exclusion is lifted
 	 *                         for this device; sorted, only folders that actually have a default exclusion
+	 * @param backupFolders    device folders backed up in addition to {@link StoragePaths}, with their file types;
+	 *                         sorted, one entry per folder
 	 */
-	public record DeviceAssignment(String serialNumber, String deviceName, String shareName, int deleteAfterDays, List<String> deleteExclusions, List<String> deleteReleases) {
+	public record DeviceAssignment(String serialNumber, String deviceName, String shareName, int deleteAfterDays, List<String> deleteExclusions, List<String> deleteReleases, List<BackupFolder> backupFolders) {
 		public DeviceAssignment {
 			deleteExclusions = normalizeExclusions(deleteExclusions);
 			deleteReleases = normalizeReleases(deleteReleases);
+			backupFolders = normalizeBackupFolders(backupFolders);
 		}
 
 		public DeviceAssignment withShareName(final String newShareName) {
-			return new DeviceAssignment(serialNumber, deviceName, newShareName, deleteAfterDays, deleteExclusions, deleteReleases);
+			return new DeviceAssignment(serialNumber, deviceName, newShareName, deleteAfterDays, deleteExclusions, deleteReleases, backupFolders);
+		}
+
+		public DeviceAssignment withBackupFolders(final List<BackupFolder> newBackupFolders) {
+			return new DeviceAssignment(serialNumber, deviceName, shareName, deleteAfterDays, deleteExclusions, deleteReleases, newBackupFolders);
+		}
+
+		/**
+		 * The folder added for this device with exactly the given path (case-insensitive), null if there is none.
+		 */
+		public BackupFolder getBackupFolder(final String devicePath) {
+			final String path = normalizeDevicePath(devicePath);
+			if (path != null) {
+				for (final BackupFolder backupFolder : backupFolders) {
+					if (backupFolder.devicePath().equalsIgnoreCase(path)) {
+						return backupFolder;
+					}
+				}
+			}
+			return null;
 		}
 
 		/**
@@ -193,7 +217,8 @@ public class HandyBackupConfiguration {
 				nullToEmpty(values.apply(prefix + "Share")),
 				parseDeleteAfterDays(values.apply(prefix + "DeleteAfterDays")),
 				parsePathList(values, prefix + "DeleteExclusion."),
-				parsePathList(values, prefix + "DeleteRelease."));
+				parsePathList(values, prefix + "DeleteRelease."),
+				parseBackupFolders(values, prefix + "BackupFolder."));
 			deviceAssignments.put(assignment.serialNumber(), assignment);
 		}
 	}
@@ -231,6 +256,10 @@ public class HandyBackupConfiguration {
 			int releaseIndex = 1;
 			for (final String release : assignment.deleteReleases()) {
 				properties.setProperty(prefix + "DeleteRelease." + releaseIndex++, release);
+			}
+			int backupFolderIndex = 1;
+			for (final BackupFolder backupFolder : assignment.backupFolders()) {
+				properties.setProperty(prefix + "BackupFolder." + backupFolderIndex++, backupFolder.toConfigValue());
 			}
 		}
 
@@ -286,8 +315,9 @@ public class HandyBackupConfiguration {
 
 	/**
 	 * Assigns a device to a share, or removes the assignment if shareName is null.
-	 * The deletion settings (days, excluded and released folders) of an existing assignment are kept,
-	 * a new assignment gets {@link #DEFAULT_DELETE_AFTER_DAYS} and only the default exclusions of {@link StoragePaths}.
+	 * The deletion settings (days, excluded and released folders) and the added backup folders of an existing
+	 * assignment are kept, a new assignment gets {@link #DEFAULT_DELETE_AFTER_DAYS}, only the default exclusions
+	 * and only the backup folders of {@link StoragePaths}.
 	 */
 	public synchronized void assign(final String serialNumber, final String deviceName, final String shareName) {
 		if (shareName == null) {
@@ -297,7 +327,8 @@ public class HandyBackupConfiguration {
 			final int deleteAfterDays = existing == null ? DEFAULT_DELETE_AFTER_DAYS : existing.deleteAfterDays();
 			final List<String> deleteExclusions = existing == null ? List.of() : existing.deleteExclusions();
 			final List<String> deleteReleases = existing == null ? List.of() : existing.deleteReleases();
-			deviceAssignments.put(serialNumber, new DeviceAssignment(serialNumber, deviceName, shareName, deleteAfterDays, deleteExclusions, deleteReleases));
+			final List<BackupFolder> backupFolders = existing == null ? List.of() : existing.backupFolders();
+			deviceAssignments.put(serialNumber, new DeviceAssignment(serialNumber, deviceName, shareName, deleteAfterDays, deleteExclusions, deleteReleases, backupFolders));
 		}
 	}
 
@@ -309,7 +340,7 @@ public class HandyBackupConfiguration {
 	public synchronized void setDeleteAfterDays(final String serialNumber, final int deleteAfterDays) {
 		final DeviceAssignment existing = serialNumber == null ? null : deviceAssignments.get(serialNumber);
 		if (existing != null) {
-			deviceAssignments.put(serialNumber, new DeviceAssignment(existing.serialNumber(), existing.deviceName(), existing.shareName(), deleteAfterDays, existing.deleteExclusions(), existing.deleteReleases()));
+			deviceAssignments.put(serialNumber, new DeviceAssignment(existing.serialNumber(), existing.deviceName(), existing.shareName(), deleteAfterDays, existing.deleteExclusions(), existing.deleteReleases(), existing.backupFolders()));
 		}
 	}
 
@@ -343,7 +374,7 @@ public class HandyBackupConfiguration {
 				releases.add(path);
 			}
 		}
-		final DeviceAssignment changed = new DeviceAssignment(existing.serialNumber(), existing.deviceName(), existing.shareName(), existing.deleteAfterDays(), exclusions, releases);
+		final DeviceAssignment changed = new DeviceAssignment(existing.serialNumber(), existing.deviceName(), existing.shareName(), existing.deleteAfterDays(), exclusions, releases, existing.backupFolders());
 		if (changed.equals(existing)) {
 			return false;
 		}
@@ -368,6 +399,60 @@ public class HandyBackupConfiguration {
 	public synchronized boolean isDeleteReleased(final String serialNumber, final String devicePath) {
 		final DeviceAssignment assignment = serialNumber == null ? null : deviceAssignments.get(serialNumber);
 		return assignment != null && assignment.isDeleteReleased(devicePath);
+	}
+
+	/**
+	 * Adds a folder of the device to the backup or changes its file types. Possible for every folder except the
+	 * device root, also for a default folder of {@link StoragePaths}, whose file types are then replaced for this device.
+	 * Does nothing if the device is not assigned.
+	 *
+	 * @param devicePath  MTP path of the folder like "/&lt;storage&gt;/Documents/Scans"
+	 * @param backupTypes file types to back up from this folder (including subfolders), not empty
+	 * @return true if the setting was changed
+	 */
+	public synchronized boolean setBackupFolder(final String serialNumber, final String devicePath, final Set<BackupType> backupTypes) {
+		final DeviceAssignment existing = serialNumber == null ? null : deviceAssignments.get(serialNumber);
+		final String path = normalizeDevicePath(devicePath);
+		if (existing == null || path == null || StoragePaths.getStorageOf(path) == null || backupTypes == null || backupTypes.isEmpty()) {
+			return false;
+		}
+		final List<BackupFolder> backupFolders = new ArrayList<>(existing.backupFolders());
+		backupFolders.removeIf(backupFolder -> backupFolder.devicePath().equalsIgnoreCase(path));
+		backupFolders.add(new BackupFolder(path, backupTypes, true));
+		return replaceIfChanged(existing, existing.withBackupFolders(backupFolders));
+	}
+
+	/**
+	 * Removes a folder added for the device. Its files are backed up again according to the parent folders
+	 * (or not at all). Does nothing if the device is not assigned.
+	 *
+	 * @return true if the setting was changed
+	 */
+	public synchronized boolean removeBackupFolder(final String serialNumber, final String devicePath) {
+		final DeviceAssignment existing = serialNumber == null ? null : deviceAssignments.get(serialNumber);
+		final String path = normalizeDevicePath(devicePath);
+		if (existing == null || path == null) {
+			return false;
+		}
+		final List<BackupFolder> backupFolders = new ArrayList<>(existing.backupFolders());
+		backupFolders.removeIf(backupFolder -> backupFolder.devicePath().equalsIgnoreCase(path));
+		return replaceIfChanged(existing, existing.withBackupFolders(backupFolders));
+	}
+
+	/**
+	 * Folders added for the device, empty for a device without assignment.
+	 */
+	public synchronized List<BackupFolder> getBackupFolders(final String serialNumber) {
+		final DeviceAssignment assignment = serialNumber == null ? null : deviceAssignments.get(serialNumber);
+		return assignment == null ? List.of() : assignment.backupFolders();
+	}
+
+	private boolean replaceIfChanged(final DeviceAssignment existing, final DeviceAssignment changed) {
+		if (changed.equals(existing)) {
+			return false;
+		}
+		deviceAssignments.put(existing.serialNumber(), changed);
+		return true;
 	}
 
 	public synchronized List<DeviceAssignment> getAssignmentsOfShare(final String shareName) {
@@ -409,6 +494,17 @@ public class HandyBackupConfiguration {
 		final List<String> result = new ArrayList<>();
 		for (int index = 1; values.apply(keyPrefix + index) != null; index++) {
 			result.add(values.apply(keyPrefix + index));
+		}
+		return result;
+	}
+
+	private static List<BackupFolder> parseBackupFolders(final UnaryOperator<String> values, final String keyPrefix) {
+		final List<BackupFolder> result = new ArrayList<>();
+		for (final String value : parsePathList(values, keyPrefix)) {
+			final BackupFolder backupFolder = BackupFolder.fromConfigValue(value);
+			if (backupFolder != null) {
+				result.add(backupFolder);
+			}
 		}
 		return result;
 	}
@@ -526,6 +622,24 @@ public class HandyBackupConfiguration {
 		}
 		result.sort(String.CASE_INSENSITIVE_ORDER);
 		return List.copyOf(result);
+	}
+
+	/**
+	 * Sorts and keeps only the last entry per folder (case-insensitive). Entries of the device root are dropped.
+	 */
+	private static List<BackupFolder> normalizeBackupFolders(final Collection<BackupFolder> backupFolders) {
+		final Map<String, BackupFolder> result = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+		if (backupFolders != null) {
+			for (final BackupFolder backupFolder : backupFolders) {
+				final String path = backupFolder == null ? null : normalizeDevicePath(backupFolder.devicePath());
+				if (path != null) {
+					result.put(path, path.equals(backupFolder.devicePath()) && backupFolder.custom()
+						? backupFolder
+						: new BackupFolder(path, backupFolder.backupTypes(), true));
+				}
+			}
+		}
+		return List.copyOf(result.values());
 	}
 
 	private static String findExclusion(final Collection<String> exclusions, final String devicePath) {

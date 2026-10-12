@@ -29,6 +29,13 @@ WAS WIRD GESICHERT
 Bilder und Videos (jpg, jpeg, png, heic, mp4, mov) aus den üblichen Ordnern: DCIM, Pictures, Movies,
 Download und die Medienordner von Apps wie WhatsApp und Telegram. Versteckte Ordner (z.B. Vorschaubilder
 und Papierkorb) sowie die WhatsApp-Ordner "Sent" und "Private" werden nicht gesichert.
+Weitere Ordner lassen sich je Handy über das Kontextmenü im Handybaum ("Zur Sicherung hinzufügen ...")
+in die Sicherung aufnehmen. Dabei wählt man die Dateiarten (Alle Dateien, Bilder, Musik, Videos, Kontakte),
+die aus dem Ordner und seinen Unterordnern gesichert werden. Das geht auch für einen Standardordner oder
+einen Unterordner davon: Es gilt immer der genaueste Ordner, so lassen sich z.B. unter "Download" für einen
+Unterordner nur Bilder sichern. Der Tooltip im Baum zeigt die gesicherten Dateiarten und woher sie kommen.
+Über das Kontextmenü lassen sich die Dateiarten später ändern oder der Ordner wieder entfernen.
+Ein ausdrücklich hinzugefügter Ordner wird auch gesichert, wenn er versteckt ist (Name mit Punkt).
 
 ABLAGE AUF DER FREIGABE
 <Unterordner>/<Jahr>/<Jahr-Monat>/<Originaldateiname>

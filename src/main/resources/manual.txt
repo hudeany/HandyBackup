@@ -29,6 +29,13 @@ WHAT IS BACKED UP
 Images and videos (jpg, jpeg, png, heic, mp4, mov) from the usual folders: DCIM, Pictures, Movies,
 Download and the media folders of apps like WhatsApp and Telegram. Hidden folders (e.g. thumbnails
 and trash) as well as the WhatsApp folders "Sent" and "Private" are not backed up.
+Further folders can be added to the backup per phone via the context menu of the phone tree
+("Add to backup ..."), choosing the file types (all files, images, music, videos, contacts) to back up
+from the folder and its subfolders. This also works for a default folder or one of its subfolders: the most
+specific folder always decides, so e.g. only images can be backed up from a subfolder of "Download".
+The tooltip in the tree shows the backed-up file types and where they come from.
+The context menu also allows changing the file types later or removing the folder again.
+A folder added explicitly is backed up even if it is hidden (name starting with a dot).
 
 STORAGE ON THE SHARE
 <subfolder>/<year>/<year-month>/<original file name>
