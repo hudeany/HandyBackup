@@ -30,6 +30,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.swing.BorderFactory;
 import javax.swing.DefaultComboBoxModel;
@@ -37,6 +39,7 @@ import javax.swing.DefaultListCellRenderer;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
+import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JOptionPane;
@@ -51,6 +54,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.WindowConstants;
 
 import de.soderer.handybackup.mtp.MtpDevice;
+import de.soderer.handybackup.mtp.MtpErrorType;
 import de.soderer.handybackup.mtp.MtpFile;
 import de.soderer.handybackup.mtp.MtpFileSystem;
 import de.soderer.handybackup.mtp.MtpManager;
@@ -120,6 +124,9 @@ public class HandyBackup extends UpdateableGuiApplication {
 	public static final String APPLICATION_ERROR_EMAIL_ADDRESS = "handybackup@soderer.de";
 
 	private static final DateTimeFormatter LOG_TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm:ss");
+
+	/** Interval for checking whether a disconnected device is available again */
+	private static final long DEVICE_POLL_INTERVAL_MILLIS = 2000;
 
 	/** Prefix of the temporary folders holding copies of files opened for viewing */
 	private static final String VIEW_FOLDER_PREFIX = "handybackup_view_";
@@ -444,7 +451,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 				for (final MtpDevice device : mtpManager.getConnectedDevices()) {
 					if (device.errorMessage() != null) {
 						SwingUtilities.invokeLater(() -> log(LangResources.get("deviceNotReadable", device.name(), device.errorMessage())));
-					} else if (device.protocol() == null || device.protocol().toUpperCase(Locale.ROOT).startsWith("MTP")) {
+					} else if (isUsableDevice(device)) {
 						devices.add(device);
 					}
 				}
@@ -459,6 +466,13 @@ public class HandyBackup extends UpdateableGuiApplication {
 				});
 			}
 		});
+	}
+
+	/**
+	 * Readable MTP devices (WPD may also report other portable devices).
+	 */
+	private static boolean isUsableDevice(final MtpDevice device) {
+		return device.errorMessage() == null && (device.protocol() == null || device.protocol().toUpperCase(Locale.ROOT).startsWith("MTP"));
 	}
 
 	private void showDevices(final List<MtpDevice> devices, final String previousSerial) {
@@ -816,19 +830,23 @@ public class HandyBackup extends UpdateableGuiApplication {
 		updateControls();
 		setBusy(LangResources.get("backupRunning"));
 		ioExecutor.submit(() -> {
+			BackupEngine engine = null;
 			try {
 				if (currentFileSystem == null) {
 					throw new Exception(LangResources.get("deviceNotOpen"));
 				}
-				final BackupEngine engine = new BackupEngine(currentFileSystem, device, getSmbConnection(share), share, listener);
+				engine = new BackupEngine(currentFileSystem, device, getSmbConnection(share), share, listener);
 				runningBackup = engine;
 				if (cancelRequested) {
 					engine.cancel();
 				}
 				final BackupEngine.BackupResult result = engine.run();
-				SwingUtilities.invokeLater(() -> onBackupFinished(engine, device, result, null));
+				final BackupEngine finishedEngine = engine;
+				SwingUtilities.invokeLater(() -> onBackupFinished(finishedEngine, device, result, null));
 			} catch (final Throwable e) {
-				SwingUtilities.invokeLater(() -> onBackupFinished(null, device, null, e));
+				// The engine is passed on, so the error dialog can tell how much was saved before the abort
+				final BackupEngine failedEngine = engine;
+				SwingUtilities.invokeLater(() -> onBackupFinished(failedEngine, device, null, e));
 			} finally {
 				runningBackup = null;
 			}
@@ -842,7 +860,15 @@ public class HandyBackup extends UpdateableGuiApplication {
 		updateControls();
 		if (error != null) {
 			logError(LangResources.get("backupAborted"), error);
-			showErrorDialog(this, LangResources.get("backupFailed"), error);
+			shareTree.refresh();
+			String progressText = null;
+			if (engine != null) {
+				progressText = engine.isScanFinished()
+					? LangResources.get("backupSavedBeforeAbort", engine.getSavedCount())
+					: LangResources.get("connectionLostDuringScan");
+			}
+			showFailure(LangResources.get("backupFailed"), error, device, progressText, this::onStartBackup);
+			return;
 		} else {
 			final String title = LangResources.get(result.cancelled() ? "backupCancelled" : "backupFinished");
 			final Object[] values = { result.found(), result.copied(), result.alreadySaved(), result.duplicates(), result.errors() };
@@ -852,7 +878,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 		}
 		shareTree.refresh();
 
-		if (error == null && engine != null && !result.cancelled()) {
+		if (engine != null && !result.cancelled()) {
 			startDeletionPhase(engine, device);
 		}
 	}
@@ -939,7 +965,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 		finishDeletionPhase();
 		if (error != null) {
 			logError(LangResources.get("phoneDeletionFailed"), error);
-			showErrorDialog(this, LangResources.get("phoneDeletionFailed"), error);
+			showFailure(LangResources.get("phoneDeletionFailed"), error, currentDevice, LangResources.get("deletionAbortedProgress"), null);
 		} else {
 			final String title = LangResources.get(result.cancelled() ? "phoneDeletionCancelled" : "phoneDeletionFinished");
 			final Object[] values = { result.deleted(), formatSize(result.deletedBytes()), result.skipped(), result.errors() };
@@ -1409,7 +1435,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 		setIdle();
 		if (error != null) {
 			logError(LangResources.get("fileLoadFailed", entry.name()), error);
-			showErrorDialog(this, LangResources.get("fileLoadFailed", entry.name()), error);
+			showFailure(LangResources.get("fileLoadFailed", entry.name()), error, currentDevice, null, null);
 			return;
 		}
 		// Desktop.open may block for a moment (starting the application), so it runs in its own thread
@@ -1505,6 +1531,124 @@ public class HandyBackup extends UpdateableGuiApplication {
 
 	private void showError(final String message) {
 		JOptionPane.showMessageDialog(this, message, APPLICATION_NAME, JOptionPane.ERROR_MESSAGE);
+	}
+
+	/**
+	 * Shows an error. A lost connection or denied access to the device is explained with instructions for the user;
+	 * the technical details (stack trace) are only shown on request. Other errors are shown in the ErrorDialog.
+	 * Must be called in the event dispatch thread.
+	 *
+	 * @param message      describes what failed
+	 * @param device       device the error refers to, may be null
+	 * @param progressText what was already done before the error (e.g. number of saved files), may be null
+	 * @param retryAction  started when the user chooses "Try again" and the device is available again;
+	 *                     null if the dialog offers no retry
+	 */
+	private void showFailure(final String message, final Throwable error, final MtpDevice device, final String progressText, final Runnable retryAction) {
+		final MtpErrorType errorType = MtpErrorType.classify(error);
+		if (errorType == MtpErrorType.OTHER) {
+			showErrorDialog(this, message, error);
+			return;
+		}
+
+		if (errorType == MtpErrorType.CONNECTION_LOST) {
+			// The device's file system is unusable now; it is reopened when the device is found again
+			deviceTree.clear(LangResources.get("deviceConnectionLostTree"));
+			ioExecutor.submit(this::closeFileSystem);
+		}
+
+		final String deviceName = device == null ? "" : device.name();
+		final StringBuilder text = new StringBuilder(message).append("\n\n");
+		text.append(LangResources.get(errorType == MtpErrorType.CONNECTION_LOST ? "connectionLostText" : "accessDeniedText", deviceName));
+		if (progressText != null) {
+			text.append("\n\n").append(progressText);
+		}
+
+		final boolean retryPossible = retryAction != null && device != null && device.serialNumber() != null;
+		final String retryOption = LangResources.get("retryButton");
+		final String detailsOption = LangResources.get("detailsButton");
+		final String closeOption = LangResources.get("close");
+		final Object[] options = retryPossible ? new Object[] { retryOption, detailsOption, closeOption } : new Object[] { detailsOption, closeOption };
+		while (true) {
+			final int answer = JOptionPane.showOptionDialog(this, text.toString(), APPLICATION_NAME, JOptionPane.DEFAULT_OPTION, JOptionPane.WARNING_MESSAGE, null, options, options[0]);
+			final Object chosen = answer >= 0 ? options[answer] : closeOption;
+			if (chosen == detailsOption) {
+				// Back to this dialog after the details were closed
+				showErrorDialog(this, message, error);
+			} else if (chosen == retryOption) {
+				waitForDeviceAndRun(device, retryAction);
+				return;
+			} else {
+				// Show the actual device state (device may be gone or reconnected meanwhile)
+				refreshDevices();
+				return;
+			}
+		}
+	}
+
+	/**
+	 * Waits (with a cancelable dialog) until the device with the serial number of the given device is connected
+	 * and readable, selects it and runs the action. Must be called in the event dispatch thread.
+	 */
+	private void waitForDeviceAndRun(final MtpDevice device, final Runnable action) {
+		final String serialNumber = device.serialNumber();
+		final AtomicBoolean stopped = new AtomicBoolean(false);
+		final AtomicReference<List<MtpDevice>> foundDevices = new AtomicReference<>();
+
+		final JOptionPane waitPane = new JOptionPane(LangResources.get("waitingForDeviceText", device.name()), JOptionPane.INFORMATION_MESSAGE,
+			JOptionPane.DEFAULT_OPTION, null, new Object[] { LangResources.get("cancel") });
+		final JDialog waitDialog = waitPane.createDialog(this, APPLICATION_NAME);
+
+		setBusy(LangResources.get("waitingForDevice", device.name()));
+		ioExecutor.submit(() -> {
+			while (!stopped.get()) {
+				try {
+					if (mtpManager != null) {
+						final List<MtpDevice> devices = new ArrayList<>();
+						boolean found = false;
+						for (final MtpDevice connectedDevice : mtpManager.getConnectedDevices()) {
+							if (isUsableDevice(connectedDevice)) {
+								devices.add(connectedDevice);
+								found |= serialNumber.equals(connectedDevice.serialNumber());
+							}
+						}
+						if (found) {
+							SwingUtilities.invokeLater(() -> {
+								if (!stopped.getAndSet(true)) {
+									foundDevices.set(devices);
+									waitDialog.dispose();
+								}
+							});
+							return;
+						}
+					}
+				} catch (@SuppressWarnings("unused") final Throwable e) {
+					// Device list temporarily not available (e.g. while the device is being reconnected): keep waiting
+				}
+				try {
+					Thread.sleep(DEVICE_POLL_INTERVAL_MILLIS);
+				} catch (@SuppressWarnings("unused") final InterruptedException e) {
+					Thread.currentThread().interrupt();
+					return;
+				}
+			}
+		});
+
+		// Blocks until the device was found or the user canceled
+		waitDialog.setVisible(true);
+		stopped.set(true);
+		setIdle();
+
+		final List<MtpDevice> devices = foundDevices.get();
+		if (devices == null) {
+			log(LangResources.get("waitForDeviceCancelled"));
+			refreshDevices();
+		} else {
+			log(LangResources.get("deviceReconnected", device.name()));
+			// Reopens the device's file system in the IO thread before the action's own IO tasks run
+			showDevices(devices, serialNumber);
+			action.run();
+		}
 	}
 
 	/**

@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.function.BooleanSupplier;
 
 import de.soderer.handybackup.mtp.MtpDevice;
+import de.soderer.handybackup.mtp.MtpErrorType;
 import de.soderer.handybackup.mtp.MtpFile;
 import de.soderer.handybackup.mtp.MtpFileSystem;
 import de.soderer.utilities.LangResources;
@@ -88,6 +89,10 @@ public class BackupEngine {
 	private List<MtpFile> scannedFiles = null;
 	private BackupIndex backupIndex = null;
 
+	/** Progress of the current {@link #run()}, readable after an abort (e.g. lost connection) */
+	private volatile boolean scanFinished = false;
+	private volatile int savedCount = 0;
+
 	public BackupEngine(final MtpFileSystem mtpFileSystem, final MtpDevice device, final SmbConnection smbConnection, final ShareDefinition share, final BackupListener listener) {
 		this.mtpFileSystem = mtpFileSystem;
 		this.device = device;
@@ -110,6 +115,21 @@ public class BackupEngine {
 		return cancelled;
 	}
 
+	/**
+	 * Whether the scan of the device folders was completed in the current or last {@link #run()}.
+	 */
+	public boolean isScanFinished() {
+		return scanFinished;
+	}
+
+	/**
+	 * Number of files newly stored or registered in the index (copied or duplicates) in the current or last {@link #run()}.
+	 * Also valid after {@link #run()} was aborted by an exception.
+	 */
+	public int getSavedCount() {
+		return savedCount;
+	}
+
 	public BackupResult run() throws Exception {
 		if (device.serialNumber() == null) {
 			throw new Exception("Device has no serial number");
@@ -120,9 +140,12 @@ public class BackupEngine {
 		backupIndex = index;
 		listener.onLog(LangResources.get("indexEntries", index.size()));
 
+		scanFinished = false;
+		savedCount = 0;
 		listener.onLog(LangResources.get("scanningPhoneFolders"));
 		final List<MtpFile> mediaFiles = scanMediaFiles(mtpFileSystem, () -> cancelled, listener);
 		scannedFiles = mediaFiles;
+		scanFinished = true;
 		listener.onLog(LangResources.get("mediaFilesFound", mediaFiles.size()));
 
 		int alreadySaved = 0;
@@ -148,8 +171,13 @@ public class BackupEngine {
 						} else {
 							duplicates++;
 						}
+						savedCount++;
 						unsavedIndexChanges++;
 					} catch (final Exception e) {
+						if (MtpErrorType.isConnectionLost(e)) {
+							// All further files would fail too: abort, the index is saved in the finally block
+							throw e;
+						}
 						errors++;
 						listener.onLog(LangResources.get("errorAtFile", mediaFile.path(), e.getMessage()));
 					}
@@ -242,7 +270,7 @@ public class BackupEngine {
 	 * Deletes the given files from the device. Before each deletion the file is checked again on the device:
 	 * if its size or modification date changed since the scan, it is kept.
 	 */
-	public DeletionResult deleteFromDevice(final List<DeletionCandidate> candidates) {
+	public DeletionResult deleteFromDevice(final List<DeletionCandidate> candidates) throws Exception {
 		int deleted = 0;
 		long deletedBytes = 0;
 		int skipped = 0;
@@ -268,6 +296,10 @@ public class BackupEngine {
 					listener.onLog(LangResources.get("deletedFromPhoneBackedUpAs", scannedFile.path(), candidate.targetPath()));
 				}
 			} catch (final Exception e) {
+				if (MtpErrorType.isConnectionLost(e)) {
+					// All further deletions would fail too
+					throw e;
+				}
 				errors++;
 				listener.onLog(LangResources.get("deleteErrorAt", scannedFile.path(), e.getMessage()));
 			}
