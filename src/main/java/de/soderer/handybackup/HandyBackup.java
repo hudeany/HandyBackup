@@ -56,8 +56,8 @@ import de.soderer.handybackup.mtp.MtpFileSystem;
 import de.soderer.handybackup.mtp.MtpManager;
 import de.soderer.utilities.ConfigurationProperties;
 import de.soderer.utilities.DateUtilities;
-import de.soderer.utilities.LangResources;
 import de.soderer.utilities.IoUtilities;
+import de.soderer.utilities.LangResources;
 import de.soderer.utilities.Result;
 import de.soderer.utilities.Utilities;
 import de.soderer.utilities.Version;
@@ -70,7 +70,7 @@ import de.soderer.utilities.swing.ErrorDialog;
 import de.soderer.utilities.swing.UpdateableGuiApplication;
 
 /**
- * HandyBackup: backs up images and videos of Android phones (connected via USB in "File transfer"
+ * HandyBackup: backs up images, videos and contacts of Android phones (connected via USB in "File transfer"
  * mode, MTP) into Samba shares.
  *
  * Each device is identified by its MTP serial number and assigned to one share; one share may
@@ -538,14 +538,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 		if (storageEnd < 0 || BackupEngine.isExcludedFolder(folder)) {
 			return false;
 		}
-		final String relativePath = path.substring(storageEnd).toLowerCase(Locale.ROOT);
-		for (final String storagePath : StoragePaths.ImagePaths) {
-			final String backupPath = storagePath.toLowerCase(Locale.ROOT);
-			if (relativePath.equals(backupPath) || relativePath.startsWith(backupPath + "/")) {
-				return true;
-			}
-		}
-		return false;
+		return StoragePaths.findStoragePath(path.substring(storageEnd)) != null;
 	}
 
 	/** Called in the IO thread */

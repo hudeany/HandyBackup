@@ -24,15 +24,16 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 
-import de.soderer.utilities.LangResources;
 import de.soderer.handybackup.mtp.MtpDevice;
 import de.soderer.handybackup.mtp.MtpFile;
 import de.soderer.handybackup.mtp.MtpFileSystem;
+import de.soderer.utilities.LangResources;
 import de.soderer.utilities.remote.FileInfo;
 import de.soderer.utilities.remote.SmbConnection;
 
 /**
- * Backs up images and videos of one MTP device into its assigned share.
+ * Backs up files of one MTP device into its assigned share. Which files are backed up is defined
+ * per folder in {@link StoragePaths} (images, videos, contacts or all files).
  *
  * Target layout: &lt;basePath&gt;/&lt;year&gt;/&lt;year-month&gt;/&lt;original file name&gt;
  * - all sources (camera, WhatsApp, screenshots ...) mixed by date
@@ -44,9 +45,6 @@ import de.soderer.utilities.remote.SmbConnection;
  * {@link #deleteFromDevice(List)}). Only files that are verifiably stored in the share are deleted.
  */
 public class BackupEngine {
-	/** File extensions that are backed up (lower case, without dot) */
-	public static final Set<String> MEDIA_EXTENSIONS = Set.of("jpg", "jpeg", "png", "heic", "mp4", "mov");
-
 	/** Folder names that are never scanned below a WhatsApp folder (own sent media, private folder) */
 	private static final Set<String> EXCLUDED_WHATSAPP_FOLDERS = Set.of("sent", "private");
 
@@ -369,15 +367,16 @@ public class BackupEngine {
 	}
 
 	/**
-	 * Collects all image and video files below the folders of {@link StoragePaths} on all storages
-	 * of the device. Overlapping entries (e.g. "/DCIM" and "/DCIM/Camera") are scanned only once.
+	 * Collects all files to back up below the folders of {@link StoragePaths} on all storages
+	 * of the device. Overlapping entries (e.g. "/DCIM" and "/DCIM/Camera") are scanned only once;
+	 * the most specific entry decides which files of a folder are backed up.
 	 */
 	public static List<MtpFile> scanMediaFiles(final MtpFileSystem mtpFileSystem, final BooleanSupplier cancelCheck, final BackupListener listener) throws IOException {
 		final Map<String, MtpFile> result = new LinkedHashMap<>();
 		final Set<String> visitedFolders = new HashSet<>();
 		for (final MtpFile storage : mtpFileSystem.list("/")) {
-			for (final String storagePath : StoragePaths.ImagePaths) {
-				final String startPath = storage.path() + storagePath;
+			for (final StoragePath storagePath : StoragePaths.PATHS) {
+				final String startPath = storage.path() + storagePath.getPath();
 				if (cancelCheck.getAsBoolean()) {
 					return new ArrayList<>(result.values());
 				}
@@ -402,7 +401,7 @@ public class BackupEngine {
 							if (!isExcludedFolder(entry) && visitedFolders.add(entry.path().toLowerCase(Locale.ROOT))) {
 								foldersToScan.push(entry);
 							}
-						} else if (isMediaFile(entry.name())) {
+						} else if (isBackupFile(storage, entry)) {
 							result.putIfAbsent(entry.path(), entry);
 						}
 					}
@@ -412,9 +411,18 @@ public class BackupEngine {
 		return new ArrayList<>(result.values());
 	}
 
-	public static boolean isMediaFile(final String fileName) {
-		final int dotIndex = fileName.lastIndexOf('.');
-		return dotIndex > 0 && MEDIA_EXTENSIONS.contains(fileName.substring(dotIndex + 1).toLowerCase(Locale.ROOT));
+	/**
+	 * Checks whether a file on the given storage is backed up according to {@link StoragePaths}.
+	 * Device paths start with the storage name: "/&lt;storage&gt;/DCIM/Camera/IMG_0001.jpg".
+	 */
+	public static boolean isBackupFile(final MtpFile storage, final MtpFile file) {
+		final String storagePrefix = storage.path();
+		final String filePath = file.path();
+		if (!filePath.startsWith(storagePrefix + "/")) {
+			return false;
+		} else {
+			return StoragePaths.isBackupFile(filePath.substring(storagePrefix.length()));
+		}
 	}
 
 	/**
