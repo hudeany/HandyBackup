@@ -17,7 +17,7 @@ public enum BackupType {
 
 	/** Music files */
 	MUSIC(
-		"mp3", "ogg"),
+		"mp3", "ogg", "wav"),
 
 	/** Video files */
 	VIDEOS(

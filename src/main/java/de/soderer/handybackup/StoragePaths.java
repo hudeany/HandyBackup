@@ -34,6 +34,7 @@ public class StoragePaths {
 		new StoragePath("/Pictures/Instagram", IMAGES),
 		new StoragePath("/Movies", VIDEOS),
 		new StoragePath("/Movies/Telegram", VIDEOS),
+		new StoragePath("/Telegram", ALL),
 		new StoragePath("/Download", ALL),
 		new StoragePath("/Downloads", ALL),
 		new StoragePath("/Documents", ALL),
