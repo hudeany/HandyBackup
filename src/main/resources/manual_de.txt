@@ -1,4 +1,4 @@
-HandyBackup - Sicherung von Fotos und Videos von Android-Handys auf eine Samba-Freigabe
+HandyBackup - Sicherung von Fotos, Videos und weiteren Dateien von Android-Handys auf eine Samba-Freigabe
 
 VORAUSSETZUNGEN
 - Windows (der Zugriff auf das Handy läuft über die Windows-Gerätetreiber, MTP)
@@ -26,16 +26,32 @@ Beim Löschen auf der Freigabe werden auch die Einträge im Index entfernt; lieg
 Handy, wird sie bei der nächsten Sicherung erneut gesichert. Der Ordner ".handybackup" ist geschützt.
 
 WAS WIRD GESICHERT
-Bilder und Videos (jpg, jpeg, png, heic, mp4, mov) aus den üblichen Ordnern: DCIM, Pictures, Movies,
-Download und die Medienordner von Apps wie WhatsApp und Telegram. Versteckte Ordner (z.B. Vorschaubilder
-und Papierkorb) sowie die WhatsApp-Ordner "Sent" und "Private" werden nicht gesichert.
+Gesichert wird je Ordner nach Dateiart:
+  Bilder    jpg, jpeg, png, heic, heif, gif, webp, bmp, dng
+  Videos    mp4, mov, 3gp, 3g2, mkv, webm, m4v, avi
+  Musik     mp3, ogg, wav
+  Kontakte  vcf
+  Alle      alle Dateien, ohne Filter nach Endung
+Standardmäßig gesichert werden (jeweils mit Unterordnern):
+  DCIM, Movies                               Bilder und Videos
+  Pictures                                   Bilder
+  Android/media (WhatsApp, Telegram ...)     Bilder und Videos
+  Download, Downloads, Documents, Telegram   alle Dateien
+  Music, Ringtones, Notifications            Musik
+  Podcasts, Recordings, Audiobooks           alle Dateien
+Bei verschachtelten Ordnern gilt der genaueste, z.B. "WhatsApp Images" nur Bilder, "WhatsApp Video" nur Videos.
+Versteckte Ordner (z.B. Vorschaubilder und Papierkorb), WhatsApp ".Statuses" sowie die WhatsApp-Ordner
+"Sent" und "Private" werden nicht gesichert.
+
 Weitere Ordner lassen sich je Handy über das Kontextmenü im Handybaum ("Zur Sicherung hinzufügen ...")
-in die Sicherung aufnehmen. Dabei wählt man die Dateiarten (Alle Dateien, Bilder, Musik, Videos, Kontakte),
-die aus dem Ordner und seinen Unterordnern gesichert werden. Das geht auch für einen Standardordner oder
-einen Unterordner davon: Es gilt immer der genaueste Ordner, so lassen sich z.B. unter "Download" für einen
-Unterordner nur Bilder sichern. Der Tooltip im Baum zeigt die gesicherten Dateiarten und woher sie kommen.
-Über das Kontextmenü lassen sich die Dateiarten später ändern oder der Ordner wieder entfernen.
-Ein ausdrücklich hinzugefügter Ordner wird auch gesichert, wenn er versteckt ist (Name mit Punkt).
+in die Sicherung aufnehmen. Dabei wählt man die Dateiarten, die aus dem Ordner und seinen Unterordnern
+gesichert werden. Das geht auch für einen Standardordner oder einen Unterordner davon: Es gilt immer der
+genaueste Ordner, so lassen sich z.B. unter "Download" für einen Unterordner nur Bilder sichern.
+Der Tooltip im Baum zeigt die gesicherten Dateiarten und woher sie kommen. Über das Kontextmenü lassen sich
+die Dateiarten später ändern ("Gesicherte Dateiarten ändern ...") oder der Ordner wieder entfernen
+("Aus Sicherung entfernen"). Ein ausdrücklich hinzugefügter Ordner wird auch gesichert, wenn er versteckt
+ist (Name mit Punkt). Die Einstellung ist nur für Handys mit zugeordneter Freigabe möglich und wird auch
+bei der Sicherung über die Kommandozeile berücksichtigt.
 
 ABLAGE AUF DER FREIGABE
 <Unterordner>/<Jahr>/<Jahr-Monat>/<Originaldateiname>
@@ -64,4 +80,7 @@ bei 0 gelöscht. Hat sich eine Datei auf dem Handy seit der Sicherung geändert,
 Einzelne Ordner lassen sich über das Kontextmenü im Handybaum ("Von Löschung ausnehmen") von dieser
 Löschung ausnehmen. Die Ausnahme gilt je Handy und auch für alle Unterordner; solche Ordner und ihre
 Dateien werden farbig markiert. Aufgehoben wird sie am selben Ordner über das Kontextmenü.
+Die Ordner Music, Ringtones, Notifications, Podcasts, Recordings und Audiobooks sind standardmäßig von der
+Löschung ausgenommen. Entfernt man dort den Haken, ist das Löschen auf diesem Handy erlaubt; der Ordner
+wird dann mit "(Löschen erlaubt)" markiert.
 Das manuelle Löschen über das Kontextmenü bleibt möglich, die Sicherheitsabfrage weist dann darauf hin.

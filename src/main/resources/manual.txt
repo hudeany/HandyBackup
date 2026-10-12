@@ -1,4 +1,4 @@
-HandyBackup - Backup of photos and videos from Android phones to a Samba share
+HandyBackup - Backup of photos, videos and other files from Android phones to a Samba share
 
 REQUIREMENTS
 - Windows (the phone is accessed via the Windows device drivers, MTP)
@@ -26,16 +26,32 @@ Deleting on the share also removes the entries from the index; if the file is st
 it is backed up again with the next backup. The folder ".handybackup" is protected.
 
 WHAT IS BACKED UP
-Images and videos (jpg, jpeg, png, heic, mp4, mov) from the usual folders: DCIM, Pictures, Movies,
-Download and the media folders of apps like WhatsApp and Telegram. Hidden folders (e.g. thumbnails
-and trash) as well as the WhatsApp folders "Sent" and "Private" are not backed up.
+Files are backed up per folder by file type:
+  Images    jpg, jpeg, png, heic, heif, gif, webp, bmp, dng
+  Videos    mp4, mov, 3gp, 3g2, mkv, webm, m4v, avi
+  Music     mp3, ogg, wav
+  Contacts  vcf
+  All       all files, no filter by extension
+Backed up by default (including subfolders):
+  DCIM, Movies                               images and videos
+  Pictures                                   images
+  Android/media (WhatsApp, Telegram ...)     images and videos
+  Download, Downloads, Documents, Telegram   all files
+  Music, Ringtones, Notifications            music
+  Podcasts, Recordings, Audiobooks           all files
+For nested folders the most specific one decides, e.g. "WhatsApp Images" only images, "WhatsApp Video" only videos.
+Hidden folders (e.g. thumbnails and trash), WhatsApp ".Statuses" as well as the WhatsApp folders
+"Sent" and "Private" are not backed up.
+
 Further folders can be added to the backup per phone via the context menu of the phone tree
-("Add to backup ..."), choosing the file types (all files, images, music, videos, contacts) to back up
-from the folder and its subfolders. This also works for a default folder or one of its subfolders: the most
-specific folder always decides, so e.g. only images can be backed up from a subfolder of "Download".
-The tooltip in the tree shows the backed-up file types and where they come from.
-The context menu also allows changing the file types later or removing the folder again.
-A folder added explicitly is backed up even if it is hidden (name starting with a dot).
+("Add to backup ..."), choosing the file types to back up from the folder and its subfolders.
+This also works for a default folder or one of its subfolders: the most specific folder always decides,
+so e.g. only images can be backed up from a subfolder of "Download".
+The tooltip in the tree shows the backed-up file types and where they come from. The context menu also
+allows changing the file types later ("Change backed-up file types ...") or removing the folder again
+("Remove from backup"). A folder added explicitly is backed up even if it is hidden (name starting with
+a dot). This setting is only possible for phones with an assigned share and is also used by backups
+from the command line.
 
 STORAGE ON THE SHARE
 <subfolder>/<year>/<year-month>/<original file name>
@@ -64,4 +80,7 @@ with 0. If a file on the phone was changed since the backup, it is kept.
 Single folders can be excluded from this deletion via the context menu of the phone tree
 ("Exclude from deletion"). The exclusion applies per phone and includes all subfolders; such folders
 and their files are marked with a color. It is removed at the same folder via the context menu.
+The folders Music, Ringtones, Notifications, Podcasts, Recordings and Audiobooks are excluded from deletion
+by default. Unchecking the item there allows deletion on this phone; the folder is then marked with
+"(deletion allowed)".
 Manual deletion via the context menu stays possible, the confirmation then points this out.
