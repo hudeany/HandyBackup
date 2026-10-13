@@ -63,11 +63,15 @@ import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
 import javax.swing.WindowConstants;
 
+import de.soderer.applicationbase.ApplicationConfigurationDialog;
+import de.soderer.applicationbase.ApplicationUpdateUtilities;
+import de.soderer.applicationbase.UpdateableGuiApplication;
 import de.soderer.handybackup.mtp.MtpDevice;
 import de.soderer.handybackup.mtp.MtpErrorType;
 import de.soderer.handybackup.mtp.MtpFile;
 import de.soderer.handybackup.mtp.MtpFileSystem;
 import de.soderer.handybackup.mtp.MtpManager;
+import de.soderer.swing.ErrorDialog;
 import de.soderer.utilities.ConfigurationProperties;
 import de.soderer.utilities.DateUtilities;
 import de.soderer.utilities.IoUtilities;
@@ -75,13 +79,9 @@ import de.soderer.utilities.LangResources;
 import de.soderer.utilities.Result;
 import de.soderer.utilities.Utilities;
 import de.soderer.utilities.Version;
-import de.soderer.utilities.appupdate.ApplicationUpdateUtilities;
 import de.soderer.utilities.remote.FileInfo;
 import de.soderer.utilities.remote.FolderInfo;
 import de.soderer.utilities.remote.SmbConnection;
-import de.soderer.utilities.swing.ApplicationConfigurationDialog;
-import de.soderer.utilities.swing.ErrorDialog;
-import de.soderer.utilities.swing.UpdateableGuiApplication;
 
 /**
  * HandyBackup: backs up images, videos and contacts of Android phones (connected via USB in "File transfer"
@@ -228,8 +228,8 @@ public class HandyBackup extends UpdateableGuiApplication {
 		}
 
 		// Allows pinning the application to the Linux Gnome dock (needs "--add-opens=java.desktop/sun.awt.X11=ALL-UNNAMED")
-		de.soderer.utilities.swing.SwingUtilities.setAwtWmClass(APPLICATION_STARTUPCLASS_NAME);
-		de.soderer.utilities.swing.SwingUtilities.setSystemLookAndFeel();
+		de.soderer.swing.SwingUtilities.setAwtWmClass(APPLICATION_STARTUPCLASS_NAME);
+		de.soderer.swing.SwingUtilities.setSystemLookAndFeel();
 
 		final Exception finalConfigurationError = configurationError;
 		SwingUtilities.invokeLater(() -> {

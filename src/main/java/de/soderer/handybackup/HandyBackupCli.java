@@ -9,11 +9,11 @@ import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import de.soderer.applicationbase.ApplicationUpdateUtilities;
 import de.soderer.handybackup.mtp.MtpDevice;
 import de.soderer.handybackup.mtp.MtpFileSystem;
 import de.soderer.handybackup.mtp.MtpManager;
 import de.soderer.utilities.LangResources;
-import de.soderer.utilities.appupdate.ApplicationUpdateUtilities;
 import de.soderer.utilities.remote.SmbConnection;
 
 /**

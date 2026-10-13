@@ -10,14 +10,14 @@ import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JPanel;
 
+import de.soderer.applicationbase.ApplicationUpdateUtilities;
+import de.soderer.swing.ModalDialog;
+import de.soderer.swing.ShowDataDialog;
 import de.soderer.utilities.ConfigurationProperties;
 import de.soderer.utilities.IoUtilities;
 import de.soderer.utilities.LangResources;
 import de.soderer.utilities.Utilities;
 import de.soderer.utilities.VersionInfo;
-import de.soderer.utilities.appupdate.ApplicationUpdateUtilities;
-import de.soderer.utilities.swing.ModalDialog;
-import de.soderer.utilities.swing.ShowDataDialog;
 
 /**
  * Help dialog of the GUI with buttons for the version info, the manual and the update check

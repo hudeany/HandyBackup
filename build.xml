@@ -6,11 +6,14 @@
 		<property name="mbassador.version" value="1.3.2" />
 		<property name="bouncycastle.version" value="1.80" />
 		<property name="slf4j.version" value="2.0.17" />
-		<property name="soderer-utilities.version" value="26.2.101" />
 		<property name="csv.version" value="26.1.3" />
 		<property name="json.version" value="26.2.8" />
 		<property name="proxyautoconfig.version" value="26.1.4" />
 		<property name="network.version" value="26.0.37" />
+		<property name="soderer-console.version" value="26.0.0" />
+		<property name="soderer-swing.version" value="26.0.1" />
+		<property name="soderer-utilities.version" value="26.2.104" />
+		<property name="soderer-applicationbase.version" value="26.0.0" />
 
 		<target name="build_jar" depends="build_setup, cleanup_before, create_jar, cleanup_after" />
 
@@ -77,13 +80,14 @@
 		</target>
 		
 		<target name="download_dependencies" depends="proxy">
-			<getMavenDependency repositoryUrl="https://soderer.de/maven2" groupId="de.soderer" artifactId="soderer-utilities" version="${soderer-utilities.version}" />
-			<getMavenDependency repositoryUrl="https://soderer.de/maven2" groupId="de.soderer" artifactId="soderer-utilities" version="${soderer-utilities.version}" classifier="sources" />
-
 			<getDependency name="csv" version="${csv.version}" url="https://github.com/hudeany/csv/releases/download/{version}/csv-{version}.jar" />
 			<getDependency name="json" version="${json.version}" url="https://github.com/hudeany/json/releases/download/{version}/json-{version}.jar" />
 			<getDependency name="proxyautoconfig" version="${proxyautoconfig.version}" url="https://github.com/hudeany/ProxyAutoConfig/releases/download/{version}/proxyautoconfig-{version}.jar" />
 			<getDependency name="network" version="${network.version}" url="https://github.com/hudeany/network/releases/download/{version}/network-{version}.jar" />
+			<getDependency name="soderer-console" version="${soderer-console.version}" url="https://github.com/hudeany/Console/releases/download/{version}/soderer-console-{version}.jar" />
+			<getDependency name="soderer-swing" version="${soderer-swing.version}" url="https://github.com/hudeany/Swing/releases/download/{version}/soderer-swing-{version}.jar" />
+			<getDependency name="soderer-applicationbase" version="${soderer-applicationbase.version}" url="https://github.com/hudeany/ApplicationBase/releases/download/{version}/soderer-applicationbase-{version}.jar" />
+			<getDependency name="soderer-utilities" version="${soderer-utilities.version}" url="https://github.com/hudeany/Utilities/releases/download/{version}/soderer-utilities-{version}.jar" />
 
 			<getMavenDependency groupId="com.hierynomus" artifactId="smbj" version="${smbj.version}" />
 			<getMavenDependency groupId="com.hierynomus" artifactId="asn-one" version="${asn-one.version}" />
