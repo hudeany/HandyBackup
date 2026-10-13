@@ -1,21 +1,25 @@
 package de.soderer.handybackup;
 
 import java.io.File;
-import java.io.Reader;
-import java.io.Writer;
-import java.nio.charset.StandardCharsets;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Properties;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.function.UnaryOperator;
 
+import de.soderer.json.JsonArray;
+import de.soderer.json.JsonNode;
+import de.soderer.json.JsonObject;
+import de.soderer.json.JsonReader;
+import de.soderer.json.JsonValueString;
+import de.soderer.json.JsonWriter;
 import de.soderer.utilities.ConfigurationProperties;
 
 /**
@@ -23,24 +27,51 @@ import de.soderer.utilities.ConfigurationProperties;
  * <ul>
  * <li>".HandyBackup.config": application settings (language, proxy, update check) via
  * {@link ConfigurationProperties}, editable in the configuration dialog</li>
- * <li>".HandyBackup.devices.config": shares and device assignments (properties format)</li>
+ * <li>".HandyBackup.devices.json": shares and device assignments (JSON format)</li>
  * </ul>
  *
  * Devices are identified by the MTP serial number (as shown in Explorer's device properties).
  *
- * Keys of the devices file:
+ * Structure of the devices file:
  * <pre>
- * Share.&lt;n&gt;.Name / .Hostname / .Port / .Sharename / .BasePath / .Username / .Password (DPAPI encrypted)
- * Device.&lt;n&gt;.SerialNumber / .DeviceName / .Share / .DeleteAfterDays
- * Device.&lt;n&gt;.DeleteExclusion.&lt;m&gt; (device folders that are never deleted automatically)
- * Device.&lt;n&gt;.DeleteRelease.&lt;m&gt; (device folders whose default exclusion from {@link StoragePaths} is lifted)
- * Device.&lt;n&gt;.BackupFolder.&lt;m&gt; (device folders backed up in addition to {@link StoragePaths}, "&lt;path&gt;|&lt;TYPE&gt;,&lt;TYPE&gt;", see {@link BackupFolder})
+ * {
+ * 	"shares": [
+ * 		{ "name": "...", "hostname": "...", "port": 445, "sharename": "...", "basePath": "...", "username": "...", "password": "&lt;DPAPI encrypted&gt;" }
+ * 	],
+ * 	"devices": [
+ * 		{
+ * 			"serialNumber": "...", "deviceName": "...", "share": "...", "deleteAfterDays": 90,
+ * 			"deleteExclusions": [ "/&lt;storage&gt;/DCIM/Camera" ],
+ * 			"deleteReleases": [ "/&lt;storage&gt;/Documents" ],
+ * 			"backupFolders": [ { "path": "/&lt;storage&gt;/Documents/Scans", "types": [ "&lt;TYPE&gt;", "&lt;TYPE&gt;" ] } ]
+ * 		}
+ * 	]
+ * }
  * </pre>
- * with n, m = 1, 2, 3 ... without gaps.
+ * "deleteExclusions": device folders that are never deleted automatically,
+ * "deleteReleases": device folders whose default exclusion from {@link StoragePaths} is lifted,
+ * "backupFolders": device folders backed up in addition to {@link StoragePaths}, see {@link BackupFolder}.
  */
 public class HandyBackupConfiguration {
-	private static final String SHARE_PREFIX = "Share.";
-	private static final String DEVICE_PREFIX = "Device.";
+	private static final String JSON_SHARES = "shares";
+	private static final String JSON_SHARE_NAME = "name";
+	private static final String JSON_SHARE_HOSTNAME = "hostname";
+	private static final String JSON_SHARE_PORT = "port";
+	private static final String JSON_SHARE_SHARENAME = "sharename";
+	private static final String JSON_SHARE_BASE_PATH = "basePath";
+	private static final String JSON_SHARE_USERNAME = "username";
+	private static final String JSON_SHARE_PASSWORD = "password";
+
+	private static final String JSON_DEVICES = "devices";
+	private static final String JSON_DEVICE_SERIAL_NUMBER = "serialNumber";
+	private static final String JSON_DEVICE_NAME = "deviceName";
+	private static final String JSON_DEVICE_SHARE = "share";
+	private static final String JSON_DEVICE_DELETE_AFTER_DAYS = "deleteAfterDays";
+	private static final String JSON_DEVICE_DELETE_EXCLUSIONS = "deleteExclusions";
+	private static final String JSON_DEVICE_DELETE_RELEASES = "deleteReleases";
+	private static final String JSON_DEVICE_BACKUP_FOLDERS = "backupFolders";
+	private static final String JSON_BACKUP_FOLDER_PATH = "path";
+	private static final String JSON_BACKUP_FOLDER_TYPES = "types";
 
 	/** Default for {@link DeviceAssignment#deleteAfterDays()}: backed-up files older than 90 days are deleted from the device */
 	public static final int DEFAULT_DELETE_AFTER_DAYS = 90;
@@ -124,18 +155,15 @@ public class HandyBackupConfiguration {
 	}
 
 	/**
-	 * Location of the file with shares and device assignments.
+	 * Location of the JSON file with shares and device assignments.
 	 */
 	public static File getDevicesFile() {
-		return new File(getApplicationDirectory(), "." + HandyBackup.APPLICATION_NAME + ".devices.config");
+		return new File(getApplicationDirectory(), "." + HandyBackup.APPLICATION_NAME + ".devices.json");
 	}
 
 	/**
 	 * Loads the application configuration (setting up the default keys of the library: language, proxy,
 	 * daily update check) and the shares and device assignments.
-	 *
-	 * Shares and assignments of former versions, which were stored in the application configuration,
-	 * are moved to the devices file once.
 	 */
 	public synchronized void load() throws Exception {
 		configurationProperties = new ConfigurationProperties(HandyBackup.APPLICATION_NAME, true);
@@ -145,31 +173,8 @@ public class HandyBackupConfiguration {
 		deviceAssignments.clear();
 		final File devicesFile = getDevicesFile();
 		if (devicesFile.exists()) {
-			final Properties properties = new Properties();
-			try (Reader reader = Files.newBufferedReader(devicesFile.toPath(), StandardCharsets.UTF_8)) {
-				properties.load(reader);
-			}
-			parse(properties::getProperty);
-		} else if (containsDeviceKeys(configurationProperties)) {
-			// Migration: move the entries into the devices file and remove them from the application configuration
-			parse(configurationProperties::get);
-			save();
-			for (final String key : configurationProperties.getKeyList()) {
-				if (key.startsWith(SHARE_PREFIX) || key.startsWith(DEVICE_PREFIX)) {
-					configurationProperties.removeKey(key);
-				}
-			}
-			configurationProperties.save();
+			readJson(devicesFile);
 		}
-	}
-
-	private static boolean containsDeviceKeys(final ConfigurationProperties properties) {
-		for (final String key : properties.getKeyList()) {
-			if (key.startsWith(SHARE_PREFIX) || key.startsWith(DEVICE_PREFIX)) {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	/**
@@ -190,78 +195,107 @@ public class HandyBackupConfiguration {
 	}
 
 	/**
-	 * Reads shares and device assignments.
-	 *
-	 * @param values returns the value of a key, null if the key does not exist
+	 * Reads shares and device assignments from the JSON devices file.
+	 * Entries without name or serial number are skipped, missing or invalid values get their defaults.
 	 */
-	private void parse(final UnaryOperator<String> values) {
-		for (int index = 1; values.apply(SHARE_PREFIX + index + ".Name") != null; index++) {
-			final String prefix = SHARE_PREFIX + index + ".";
+	private void readJson(final File file) throws Exception {
+		final JsonNode rootNode;
+		try (InputStream inputStream = Files.newInputStream(file.toPath());
+				JsonReader jsonReader = new JsonReader(inputStream)) {
+			rootNode = jsonReader.read();
+		}
+		if (!(rootNode instanceof final JsonObject root)) {
+			throw new Exception("Invalid devices file (JSON object expected): " + file);
+		}
+
+		for (final JsonObject shareObject : getObjects(root, JSON_SHARES)) {
+			final String name = getString(shareObject, JSON_SHARE_NAME);
+			if (name == null || name.isBlank()) {
+				continue;
+			}
 			final ShareDefinition share = new ShareDefinition();
-			share.setName(values.apply(prefix + "Name"));
-			share.setHostname(nullToEmpty(values.apply(prefix + "Hostname")));
-			share.setPort(parsePort(values.apply(prefix + "Port")));
-			share.setSharename(nullToEmpty(values.apply(prefix + "Sharename")));
-			share.setBasePath(values.apply(prefix + "BasePath"));
-			share.setUsername(nullToEmpty(values.apply(prefix + "Username")));
-			final String encryptedPassword = values.apply(prefix + "Password");
+			share.setName(name);
+			share.setHostname(nullToEmpty(getString(shareObject, JSON_SHARE_HOSTNAME)));
+			share.setPort(parsePort(getString(shareObject, JSON_SHARE_PORT)));
+			share.setSharename(nullToEmpty(getString(shareObject, JSON_SHARE_SHARENAME)));
+			share.setBasePath(getString(shareObject, JSON_SHARE_BASE_PATH));
+			share.setUsername(nullToEmpty(getString(shareObject, JSON_SHARE_USERNAME)));
+			final String encryptedPassword = getString(shareObject, JSON_SHARE_PASSWORD);
 			share.setEncryptedPassword(encryptedPassword == null || encryptedPassword.isEmpty() ? null : encryptedPassword);
 			shares.put(share.getName(), share);
 		}
 
-		for (int index = 1; values.apply(DEVICE_PREFIX + index + ".SerialNumber") != null; index++) {
-			final String prefix = DEVICE_PREFIX + index + ".";
+		for (final JsonObject deviceObject : getObjects(root, JSON_DEVICES)) {
+			final String serialNumber = getString(deviceObject, JSON_DEVICE_SERIAL_NUMBER);
+			if (serialNumber == null || serialNumber.isEmpty()) {
+				continue;
+			}
+			final List<BackupFolder> backupFolders = new ArrayList<>();
+			for (final JsonObject folderObject : getObjects(deviceObject, JSON_DEVICE_BACKUP_FOLDERS)) {
+				final String path = getString(folderObject, JSON_BACKUP_FOLDER_PATH);
+				final Set<BackupType> backupTypes = parseBackupTypes(getStrings(folderObject, JSON_BACKUP_FOLDER_TYPES));
+				if (path != null && !backupTypes.isEmpty()) {
+					backupFolders.add(new BackupFolder(path, backupTypes, true));
+				}
+			}
 			final DeviceAssignment assignment = new DeviceAssignment(
-				values.apply(prefix + "SerialNumber"),
-				nullToEmpty(values.apply(prefix + "DeviceName")),
-				nullToEmpty(values.apply(prefix + "Share")),
-				parseDeleteAfterDays(values.apply(prefix + "DeleteAfterDays")),
-				parsePathList(values, prefix + "DeleteExclusion."),
-				parsePathList(values, prefix + "DeleteRelease."),
-				parseBackupFolders(values, prefix + "BackupFolder."));
+				serialNumber,
+				nullToEmpty(getString(deviceObject, JSON_DEVICE_NAME)),
+				nullToEmpty(getString(deviceObject, JSON_DEVICE_SHARE)),
+				parseDeleteAfterDays(getString(deviceObject, JSON_DEVICE_DELETE_AFTER_DAYS)),
+				getStrings(deviceObject, JSON_DEVICE_DELETE_EXCLUSIONS),
+				getStrings(deviceObject, JSON_DEVICE_DELETE_RELEASES),
+				backupFolders);
 			deviceAssignments.put(assignment.serialNumber(), assignment);
 		}
 	}
 
 	/**
-	 * Saves all shares and assignments into the devices file. The file is written to a temporary file
+	 * Saves all shares and assignments into the JSON devices file. The file is written to a temporary file
 	 * first, so a failed write never destroys the existing file.
 	 */
 	public synchronized void save() throws Exception {
-		final Properties properties = new Properties();
-
-		int index = 1;
+		final JsonArray sharesArray = new JsonArray();
 		for (final ShareDefinition share : shares.values()) {
-			final String prefix = SHARE_PREFIX + index++ + ".";
-			properties.setProperty(prefix + "Name", share.getName());
-			properties.setProperty(prefix + "Hostname", nullToEmpty(share.getHostname()));
-			properties.setProperty(prefix + "Port", Integer.toString(share.getPort()));
-			properties.setProperty(prefix + "Sharename", nullToEmpty(share.getSharename()));
-			properties.setProperty(prefix + "BasePath", nullToEmpty(share.getBasePath()));
-			properties.setProperty(prefix + "Username", nullToEmpty(share.getUsername()));
-			properties.setProperty(prefix + "Password", nullToEmpty(share.getEncryptedPassword()));
+			final JsonObject shareObject = new JsonObject()
+				.add(JSON_SHARE_NAME, share.getName())
+				.add(JSON_SHARE_HOSTNAME, nullToEmpty(share.getHostname()))
+				.add(JSON_SHARE_PORT, share.getPort())
+				.add(JSON_SHARE_SHARENAME, nullToEmpty(share.getSharename()))
+				.add(JSON_SHARE_BASE_PATH, nullToEmpty(share.getBasePath()))
+				.add(JSON_SHARE_USERNAME, nullToEmpty(share.getUsername()));
+			if (share.getEncryptedPassword() != null && !share.getEncryptedPassword().isEmpty()) {
+				// DPAPI encrypted, only decryptable by the same Windows user
+				shareObject.add(JSON_SHARE_PASSWORD, share.getEncryptedPassword());
+			}
+			sharesArray.add(shareObject);
 		}
 
-		index = 1;
+		final JsonArray devicesArray = new JsonArray();
 		for (final DeviceAssignment assignment : deviceAssignments.values()) {
-			final String prefix = DEVICE_PREFIX + index++ + ".";
-			properties.setProperty(prefix + "SerialNumber", assignment.serialNumber());
-			properties.setProperty(prefix + "DeviceName", nullToEmpty(assignment.deviceName()));
-			properties.setProperty(prefix + "Share", assignment.shareName());
-			properties.setProperty(prefix + "DeleteAfterDays", Integer.toString(assignment.deleteAfterDays()));
-			int exclusionIndex = 1;
-			for (final String exclusion : assignment.deleteExclusions()) {
-				properties.setProperty(prefix + "DeleteExclusion." + exclusionIndex++, exclusion);
-			}
-			int releaseIndex = 1;
-			for (final String release : assignment.deleteReleases()) {
-				properties.setProperty(prefix + "DeleteRelease." + releaseIndex++, release);
-			}
-			int backupFolderIndex = 1;
+			final JsonArray backupFoldersArray = new JsonArray();
 			for (final BackupFolder backupFolder : assignment.backupFolders()) {
-				properties.setProperty(prefix + "BackupFolder." + backupFolderIndex++, backupFolder.toConfigValue());
+				final JsonArray typesArray = new JsonArray();
+				for (final BackupType backupType : EnumSet.copyOf(backupFolder.backupTypes())) {
+					typesArray.add(backupType.name());
+				}
+				backupFoldersArray.add(new JsonObject()
+					.add(JSON_BACKUP_FOLDER_PATH, backupFolder.devicePath())
+					.add(JSON_BACKUP_FOLDER_TYPES, typesArray));
 			}
+			devicesArray.add(new JsonObject()
+				.add(JSON_DEVICE_SERIAL_NUMBER, assignment.serialNumber())
+				.add(JSON_DEVICE_NAME, nullToEmpty(assignment.deviceName()))
+				.add(JSON_DEVICE_SHARE, assignment.shareName())
+				.add(JSON_DEVICE_DELETE_AFTER_DAYS, assignment.deleteAfterDays())
+				.add(JSON_DEVICE_DELETE_EXCLUSIONS, toJsonArray(assignment.deleteExclusions()))
+				.add(JSON_DEVICE_DELETE_RELEASES, toJsonArray(assignment.deleteReleases()))
+				.add(JSON_DEVICE_BACKUP_FOLDERS, backupFoldersArray));
 		}
+
+		final JsonObject root = new JsonObject()
+			.add(JSON_SHARES, sharesArray)
+			.add(JSON_DEVICES, devicesArray);
 
 		final File devicesFile = getDevicesFile();
 		final File directory = devicesFile.getParentFile();
@@ -269,8 +303,9 @@ public class HandyBackupConfiguration {
 			throw new Exception("Cannot create configuration folder: " + directory);
 		}
 		final File tempFile = new File(directory, devicesFile.getName() + ".tmp");
-		try (Writer writer = Files.newBufferedWriter(tempFile.toPath(), StandardCharsets.UTF_8)) {
-			properties.store(writer, HandyBackup.APPLICATION_NAME + " shares and device assignments (passwords are DPAPI encrypted)");
+		try (OutputStream outputStream = Files.newOutputStream(tempFile.toPath());
+				JsonWriter jsonWriter = new JsonWriter(outputStream)) {
+			jsonWriter.add(root);
 		}
 		Files.move(tempFile.toPath(), devicesFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
 	}
@@ -465,6 +500,69 @@ public class HandyBackupConfiguration {
 		return result;
 	}
 
+	/**
+	 * Value of a simple JSON property as string (numbers and booleans converted), null if missing or JSON null.
+	 */
+	private static String getString(final JsonObject jsonObject, final String key) {
+		final Object value = jsonObject.getSimpleValue(key);
+		return value == null ? null : value.toString();
+	}
+
+	/**
+	 * All JSON objects of an array property, empty if the property is missing or not an array.
+	 * Items that are not JSON objects are skipped.
+	 */
+	private static List<JsonObject> getObjects(final JsonObject jsonObject, final String key) {
+		final List<JsonObject> result = new ArrayList<>();
+		if (jsonObject.get(key) instanceof final JsonArray jsonArray) {
+			for (int index = 0; index < jsonArray.size(); index++) {
+				if (jsonArray.get(index) instanceof final JsonObject item) {
+					result.add(item);
+				}
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * All string values of an array property, empty if the property is missing or not an array.
+	 * Items that are not strings are skipped.
+	 */
+	private static List<String> getStrings(final JsonObject jsonObject, final String key) {
+		final List<String> result = new ArrayList<>();
+		if (jsonObject.get(key) instanceof final JsonArray jsonArray) {
+			for (int index = 0; index < jsonArray.size(); index++) {
+				if (jsonArray.get(index) instanceof final JsonValueString item && item.getValue() != null) {
+					result.add(item.getValue());
+				}
+			}
+		}
+		return result;
+	}
+
+	private static JsonArray toJsonArray(final Collection<String> values) {
+		final JsonArray jsonArray = new JsonArray();
+		for (final String value : values) {
+			jsonArray.add(value);
+		}
+		return jsonArray;
+	}
+
+	/**
+	 * Unknown type names (e.g. of a newer version) are skipped.
+	 */
+	private static Set<BackupType> parseBackupTypes(final Collection<String> names) {
+		final Set<BackupType> result = EnumSet.noneOf(BackupType.class);
+		for (final String name : names) {
+			try {
+				result.add(BackupType.valueOf(name.trim()));
+			} catch (@SuppressWarnings("unused") final IllegalArgumentException e) {
+				// Ignore unknown backup type
+			}
+		}
+		return result;
+	}
+
 	private static int parsePort(final String value) {
 		try {
 			final int port = Integer.parseInt(value == null ? "" : value.trim());
@@ -488,25 +586,6 @@ public class HandyBackupConfiguration {
 		} catch (@SuppressWarnings("unused") final NumberFormatException e) {
 			return DEFAULT_DELETE_AFTER_DAYS;
 		}
-	}
-
-	private static List<String> parsePathList(final UnaryOperator<String> values, final String keyPrefix) {
-		final List<String> result = new ArrayList<>();
-		for (int index = 1; values.apply(keyPrefix + index) != null; index++) {
-			result.add(values.apply(keyPrefix + index));
-		}
-		return result;
-	}
-
-	private static List<BackupFolder> parseBackupFolders(final UnaryOperator<String> values, final String keyPrefix) {
-		final List<BackupFolder> result = new ArrayList<>();
-		for (final String value : parsePathList(values, keyPrefix)) {
-			final BackupFolder backupFolder = BackupFolder.fromConfigValue(value);
-			if (backupFolder != null) {
-				result.add(backupFolder);
-			}
-		}
-		return result;
 	}
 
 	/**
