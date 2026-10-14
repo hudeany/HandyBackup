@@ -13,7 +13,7 @@
 		<property name="soderer-console.version" value="26.0.1" />
 		<property name="soderer-swing.version" value="26.0.2" />
 		<property name="soderer-utilities.version" value="26.2.105" />
-		<property name="soderer-applicationbase.version" value="26.0.1" />
+		<property name="soderer-applicationbase.version" value="26.0.2" />
 
 		<target name="build_jar" depends="build_setup, cleanup_before, create_jar, cleanup_after" />
 
