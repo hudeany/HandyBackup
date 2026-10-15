@@ -1,185 +1,332 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-	<project default="build_jar" name="Create all Jars for Project HandyBackup">
-		<property name="antbuildhelp.version" value="26.0.9" />
-		<property name="smbj.version" value="0.14.0" />
-		<property name="asn-one.version" value="0.6.0" />
-		<property name="mbassador.version" value="1.3.2" />
-		<property name="bouncycastle.version" value="1.86" />
-		<property name="slf4j.version" value="2.0.17" />
-		<property name="csv.version" value="26.1.9" />
-		<property name="json.version" value="26.2.8" />
-		<property name="proxyautoconfig.version" value="26.1.4" />
-		<property name="network.version" value="26.0.37" />
-		<property name="soderer-console.version" value="26.0.4" />
-		<property name="soderer-swing.version" value="26.0.2" />
-		<property name="soderer-utilities.version" value="26.2.105" />
-		<property name="soderer-applicationbase.version" value="26.0.5" />
+<project default="build_jar" name="Create all Jars for Project HandyBackup">
+	<!-- Project specific part -->
+	<property name="applicationName" value="HandyBackup" />
+	<property name="sourcePath" value="src" />
+	<property name="mainClass" value="de.soderer.HandyBackup" />
+	<property name="rsrcMainClass" value="de.soderer.handybackup.HandyBackup" />
+	<property name="versionFileName" value="application_version.txt" />
 
-		<target name="build_jar" depends="build_setup, cleanup_before, create_jar, sign_jar, cleanup_after" />
+	<!-- Default: https://soderer.de/index.php?download=Versions.json -->
+	<!-- Override for GitHub: https://api.github.com/repos/hudeany/HandyBackup/releases/latest -->
+	<property name="VersionsUrl" value="https://api.github.com/repos/hudeany/HandyBackup/releases/latest" />
 
-		<target name="probe-proxy">
-			<condition property="proxy.enabled">
-				<and>
-					<isset property="proxy.host" />
-					<isreachable host="${proxy.host}" />
-				</and>
-			</condition>
-		</target>
+	<property name="smbj.version" value="0.14.0" />
+	<property name="asn-one.version" value="0.6.0" />
+	<property name="mbassador.version" value="1.3.2" />
+	<property name="bouncycastle.version" value="1.86" />
+	<property name="slf4j.version" value="2.0.17" />
+	<property name="csv.version" value="26.1.9" />
+	<property name="json.version" value="26.2.8" />
+	<property name="proxyautoconfig.version" value="26.1.4" />
+	<property name="network.version" value="26.0.37" />
+	<property name="soderer-console.version" value="26.0.4" />
+	<property name="soderer-swing.version" value="26.0.2" />
+	<property name="soderer-utilities.version" value="26.2.105" />
+	<property name="soderer-applicationbase.version" value="26.0.5" />
 
-		<target name="proxy" depends="probe-proxy" if="proxy.enabled">
-			<property name="proxy.port" value="80" />
-			<property name="proxy.user" value="" />
-			<property name="proxy.pass" value="" />
-			<setproxy proxyhost="${proxy.host}" proxyport="${proxy.port}" proxyuser="${proxy.user}" proxypassword="${proxy.pass}" />
-		</target>
+	<patternset id="application.resources">
+		<include name="**/LanguageProperties*.properties" />
+		<include name="**/*.txt" />
+		<include name="**/*.pem" />
+		<include name="**/*.png" />
+		<include name="**/*.ico" />
+	</patternset>
 
-		<available file="lib_build/antbuildhelp-${antbuildhelp.version}.jar" property="antbuildhelp.available" />
-		<target name="get_antbuildhelp" unless="antbuildhelp.available">
-			<mkdir dir="lib_build/" />
-			<delete>
-				<fileset dir="lib_build" includes="antbuildhelp-*.jar" />
-			</delete>
-			<get src="https://github.com/hudeany/antbuildhelp/releases/download/${antbuildhelp.version}/antbuildhelp-${antbuildhelp.version}.jar" dest="lib_build/" />
-		</target>
+	<resources id="application.libs">
+		<fileset dir="lib" includes="*.jar" excludes="*-sources.jar,*_sources.jar,*-javadoc.jar,*_javadoc.jar" />
+	</resources>
 
-		<target name="register_antbuildhelp" depends="get_antbuildhelp">
-			<typedef resource="de/soderer/antbuildhelp/antlib.xml" classpath="lib_build/antbuildhelp-${antbuildhelp.version}.jar" />
-		</target>
+	<target name="download_dependencies" depends="register_antbuildhelp">
+		<getDependency name="csv" version="${csv.version}" url="https://github.com/hudeany/csv/releases/download/{version}/csv-{version}.jar" />
+		<getDependency name="json" version="${json.version}" url="https://github.com/hudeany/json/releases/download/{version}/json-{version}.jar" />
+		<getDependency name="proxyautoconfig" version="${proxyautoconfig.version}" url="https://github.com/hudeany/ProxyAutoConfig/releases/download/{version}/proxyautoconfig-{version}.jar" />
+		<getDependency name="network" version="${network.version}" url="https://github.com/hudeany/network/releases/download/{version}/network-{version}.jar" />
+		<getDependency name="soderer-console" version="${soderer-console.version}" url="https://github.com/hudeany/Console/releases/download/{version}/soderer-console-{version}.jar" />
+		<getDependency name="soderer-swing" version="${soderer-swing.version}" url="https://github.com/hudeany/Swing/releases/download/{version}/soderer-swing-{version}.jar" />
+		<getDependency name="soderer-applicationbase" version="${soderer-applicationbase.version}" url="https://github.com/hudeany/ApplicationBase/releases/download/{version}/soderer-applicationbase-{version}.jar" />
+		<getDependency name="soderer-utilities" version="${soderer-utilities.version}" url="https://github.com/hudeany/Utilities/releases/download/{version}/soderer-utilities-{version}.jar" />
 
-		<target name="build_setup" depends="register_antbuildhelp">
-			<echo>Java/JVM HOME: ${java.home}</echo>
-			<echo>Java/JVM version: ${ant.java.version}</echo>
-			<echo>Java/JVM detailed version: ${java.version}</echo>
+		<getMavenDependency groupId="com.hierynomus" artifactId="smbj" version="${smbj.version}" />
+		<getMavenDependency groupId="com.hierynomus" artifactId="asn-one" version="${asn-one.version}" />
+		<getMavenDependency groupId="net.engio" artifactId="mbassador" version="${mbassador.version}" />
+		<getMavenDependency groupId="org.bouncycastle" artifactId="bcprov-jdk18on" version="${bouncycastle.version}" />
+		<getMavenDependency groupId="org.slf4j" artifactId="slf4j-api" version="${slf4j.version}" />
+	</target>
 
-			<loadfile property="build.version" srcFile="build.version" failonerror="false" />
-			<property name="build.version" value="26.0.0" />
-			<echo message="build.version: ${build.version}" />
+	<!-- ============================================================================================================ -->
+	<!-- Common part: identical in all applications. Changes are made here once and then copied into every project. -->
+	<!-- The project specific part above must define:                                                                -->
+	<!--   properties  applicationName, sourcePath, mainClass, rsrcMainClass, versionFileName                         -->
+	<!--   optional    VersionsUrl (overrides the value from codeSigning.properties),                                -->
+	<!--               createUnversionedJar (additionally creates "<applicationName>.jar")                            -->
+	<!--               createJavadocJar (additionally creates "<applicationName>-<version>-javadoc.jar")               -->
+	<!--   patternset  "application.resources" (files copied from src/main/resources into the jar)                     -->
+	<!--   resources   "application.libs" (jar files used for compiling and bundled into the jar)                      -->
+	<!--   target      "download_dependencies"                                                                       -->
+	<!-- Code signing and the CA public key files are optional: they are only used, if codeSigning.properties exists. -->
+	<!-- Tests run automatically, if the project has a "src/test/java" directory (JUnit 6, test libs in "lib_test").  -->
+	<!-- ============================================================================================================ -->
 
-			<!-- Default: https://soderer.de/index.php?download=Versions.json -->
-			<!-- Override for GitHub: https://api.github.com/repos/hudeany/HandyBackup/releases/latest -->
-			<property name="VersionsUrl" value = "https://api.github.com/repos/hudeany/HandyBackup/releases/latest" />
-			<property file="${user.home}/git/codeSigning.properties" />
+	<property name="antbuildhelp.version" value="26.0.9" />
 
-			<property environment="env"/>
+	<!-- Test libraries, same for all applications -->
+	<property name="hamcrest.version" value="3.0" />
+	<property name="junit.version" value="6.0.3" />
+	<property name="opentest4j.version" value="1.3.0" />
+	<property name="apiguardian.version" value="1.1.2" />
 
-			<tstamp>
-				<format property="buildTime" pattern="yyyy-MM-dd HH:mm:ss" locale="en" />
-			</tstamp>
-			<echo message="buildTime: ${buildTime}" />
+	<target name="build_jar" depends="build_setup, cleanup_before, create_jar, test, create_javadoc, sign_jar, copy_unversioned_jar, cleanup_after" />
 
-			<property name="buildPath" value="build" />
-			<echo message="buildPath: ${buildPath}" />
-		</target>
+	<target name="probe-proxy">
+		<condition property="proxy.enabled">
+			<and>
+				<isset property="proxy.host" />
+				<isreachable host="${proxy.host}" />
+			</and>
+		</condition>
+	</target>
 
-		<target name="cleanup_before">
-			<delete dir="${buildPath}" />
-			<mkdir dir="${buildPath}" />
-			<mkdir dir="${buildPath}/bin" />
-		</target>
-		
-		<target name="download_dependencies" depends="proxy">
-			<getDependency name="csv" version="${csv.version}" url="https://github.com/hudeany/csv/releases/download/{version}/csv-{version}.jar" />
-			<getDependency name="json" version="${json.version}" url="https://github.com/hudeany/json/releases/download/{version}/json-{version}.jar" />
-			<getDependency name="proxyautoconfig" version="${proxyautoconfig.version}" url="https://github.com/hudeany/ProxyAutoConfig/releases/download/{version}/proxyautoconfig-{version}.jar" />
-			<getDependency name="network" version="${network.version}" url="https://github.com/hudeany/network/releases/download/{version}/network-{version}.jar" />
-			<getDependency name="soderer-console" version="${soderer-console.version}" url="https://github.com/hudeany/Console/releases/download/{version}/soderer-console-{version}.jar" />
-			<getDependency name="soderer-swing" version="${soderer-swing.version}" url="https://github.com/hudeany/Swing/releases/download/{version}/soderer-swing-{version}.jar" />
-			<getDependency name="soderer-applicationbase" version="${soderer-applicationbase.version}" url="https://github.com/hudeany/ApplicationBase/releases/download/{version}/soderer-applicationbase-{version}.jar" />
-			<getDependency name="soderer-utilities" version="${soderer-utilities.version}" url="https://github.com/hudeany/Utilities/releases/download/{version}/soderer-utilities-{version}.jar" />
+	<target name="proxy" depends="probe-proxy" if="proxy.enabled">
+		<property name="proxy.port" value="80" />
+		<property name="proxy.user" value="" />
+		<property name="proxy.pass" value="" />
+		<setproxy proxyhost="${proxy.host}" proxyport="${proxy.port}" proxyuser="${proxy.user}" proxypassword="${proxy.pass}" />
+	</target>
 
-			<getMavenDependency groupId="com.hierynomus" artifactId="smbj" version="${smbj.version}" />
-			<getMavenDependency groupId="com.hierynomus" artifactId="asn-one" version="${asn-one.version}" />
-			<getMavenDependency groupId="net.engio" artifactId="mbassador" version="${mbassador.version}" />
-			<getMavenDependency groupId="org.bouncycastle" artifactId="bcprov-jdk18on" version="${bouncycastle.version}" />
-			<getMavenDependency groupId="org.slf4j" artifactId="slf4j-api" version="${slf4j.version}" />
-		</target>
+	<available file="lib_build/antbuildhelp-${antbuildhelp.version}.jar" property="antbuildhelp.available" />
+	<target name="get_antbuildhelp" unless="antbuildhelp.available">
+		<mkdir dir="lib_build/" />
+		<delete>
+			<fileset dir="lib_build" includes="antbuildhelp-*.jar" />
+		</delete>
+		<get src="https://github.com/hudeany/antbuildhelp/releases/download/${antbuildhelp.version}/antbuildhelp-${antbuildhelp.version}.jar" dest="lib_build/" />
+	</target>
 
-		<target name="compile" depends="download_dependencies">
-			<path id="build.classpath">
-				<fileset dir="lib">
-					<include name="*.jar" />
+	<!-- typedef must run on every build (Ant doesn't remember task registrations between runs),
+	     so it lives in its own target with no "unless" - not inside get_antbuildhelp, which is
+	     skipped whenever the jar is already cached from a previous run. -->
+	<target name="register_antbuildhelp" depends="get_antbuildhelp">
+		<typedef resource="de/soderer/antbuildhelp/antlib.xml" classpath="lib_build/antbuildhelp-${antbuildhelp.version}.jar" />
+	</target>
+
+	<available file="${user.home}/git/codeSigning.properties" property="codeSigningPropertiesAvailable" />
+	<available file="src/test/java" type="dir" property="testSourcesAvailable" />
+
+	<target name="build_setup" depends="register_antbuildhelp">
+		<echo>Ant version: ${ant.version}</echo>
+		<echo>Java/JVM HOME: ${java.home}</echo>
+		<echo>Java/JVM version: ${ant.java.version}</echo>
+		<echo>Java/JVM detailed version: ${java.version}</echo>
+
+		<loadfile property="build.version" srcFile="build.version" failonerror="false">
+			<filterchain>
+				<striplinebreaks />
+				<trim />
+			</filterchain>
+		</loadfile>
+		<property name="build.version" value="noVersion" />
+		<echo message="applicationName: ${applicationName}" />
+		<echo message="build.version: ${build.version}" />
+
+		<!-- A VersionsUrl set in the project specific part has priority, because Ant properties are immutable -->
+		<property file="${user.home}/git/codeSigning.properties" />
+		<property name="VersionsUrl" value="" />
+		<echo message="VersionsUrl: ${VersionsUrl}" />
+		<condition property="codeSigningState" value="enabled" else="disabled (no codeSigning.properties)">
+			<isset property="codeSigningPropertiesAvailable" />
+		</condition>
+		<echo message="Code signing: ${codeSigningState}" />
+
+		<property environment="env" />
+
+		<tstamp>
+			<format property="buildTime" pattern="yyyy-MM-dd HH:mm:ss" locale="en" />
+		</tstamp>
+		<echo message="buildTime: ${buildTime}" />
+
+		<property name="buildPath" value="build" />
+		<echo message="buildPath: ${buildPath}" />
+	</target>
+
+	<target name="cleanup_before" depends="build_setup">
+		<delete dir="${buildPath}" />
+		<mkdir dir="${buildPath}" />
+		<mkdir dir="${buildPath}/bin" />
+	</target>
+
+	<target name="compile" depends="build_setup, proxy, download_dependencies">
+		<path id="build.classpath">
+			<resources refid="application.libs" />
+		</path>
+
+		<mkdir dir="${buildPath}/bin" />
+		<javac release="17" debug="true" nowarn="true" deprecation="false" destdir="${buildPath}/bin" fork="yes" srcdir="${sourcePath}" includeantruntime="false" encoding="UTF-8">
+			<classpath refid="build.classpath" />
+			<compilerarg value="-Xlint:unchecked" />
+			<compilerarg value="-parameters" />
+		</javac>
+
+		<copy todir="${buildPath}/bin">
+			<fileset dir="src/main/resources">
+				<patternset refid="application.resources" />
+			</fileset>
+		</copy>
+
+		<available file="${buildPath}/bin/VersionInfo.txt" property="versionInfoFileAvailable" />
+	</target>
+
+	<!-- Only for applications with a VersionInfo.txt containing the placeholder ${build.version} -->
+	<target name="replace_version_info" depends="compile" if="versionInfoFileAvailable">
+		<replace file="${buildPath}/bin/VersionInfo.txt" token="$${build.version}" value="${build.version}" />
+	</target>
+
+	<!-- The CA public key file names are only known with codeSigning.properties, otherwise they stay empty -->
+	<target name="determine_ca_public_key_file_names" if="codeSigningPropertiesAvailable">
+		<basename property="CaPublicKeyFileName" file="${CaPublicKey}" />
+		<basename property="CaPublicKeyFileNameOld" file="${CaPublicKeyOld}" />
+	</target>
+
+	<!-- Runs after compile, so the copied resources cannot overwrite the generated version file -->
+	<target name="create_versionfile" depends="replace_version_info, determine_ca_public_key_file_names">
+		<property name="CaPublicKeyFileName" value="" />
+		<property name="CaPublicKeyFileNameOld" value="" />
+
+		<delete file="${buildPath}/bin/${versionFileName}" />
+		<echo file="${buildPath}/bin/${versionFileName}" append="false">${build.version}${line.separator}${buildTime}${line.separator}${VersionsUrl}${line.separator}${CaPublicKeyFileName}, ${CaPublicKeyFileNameOld}${line.separator}</echo>
+		<delete file="src/main/resources/${versionFileName}" />
+		<echo file="src/main/resources/${versionFileName}" append="false">${build.version}${line.separator}${buildTime}${line.separator}${VersionsUrl}${line.separator}${CaPublicKeyFileName}, ${CaPublicKeyFileNameOld}${line.separator}</echo>
+	</target>
+
+	<!-- The CA public key files are placed in the jar root, like before with zipfileset -->
+	<target name="copy_ca_public_keys" depends="create_versionfile" if="codeSigningPropertiesAvailable">
+		<copy file="${CaPublicKey}" todir="${buildPath}/bin" />
+		<copy file="${CaPublicKeyOld}" todir="${buildPath}/bin" />
+	</target>
+
+	<target name="create_jar" depends="copy_ca_public_keys">
+		<jar destfile="${buildPath}/${applicationName}-${build.version}.jar">
+			<manifest>
+				<attribute name="Main-Class" value="${mainClass}" />
+				<attribute name="Rsrc-Main-Class" value="${rsrcMainClass}" />
+				<attribute name="Class-Path" value="." />
+				<attribute name="Enable-Native-Access" value="ALL-UNNAMED" />
+			</manifest>
+
+			<fileset dir="${buildPath}/bin" />
+
+			<!-- Library jars are stored in the jar root for the jar-in-jar loader -->
+			<resources refid="application.libs" />
+		</jar>
+	</target>
+
+	<!-- The "if" is also set here, because Ant runs the dependencies of a target even if the target itself is skipped -->
+	<target name="download_test_dependencies" depends="register_antbuildhelp, proxy" if="testSourcesAvailable">
+		<getMavenDependency libDir="lib_test" groupId="org.hamcrest" artifactId="hamcrest" version="${hamcrest.version}" />
+		<getMavenDependency libDir="lib_test" groupId="org.junit.jupiter" artifactId="junit-jupiter-api" version="${junit.version}" />
+		<getMavenDependency libDir="lib_test" groupId="org.junit.jupiter" artifactId="junit-jupiter-engine" version="${junit.version}" />
+		<getMavenDependency libDir="lib_test" groupId="org.junit.jupiter" artifactId="junit-jupiter-params" version="${junit.version}" />
+		<getMavenDependency libDir="lib_test" groupId="org.junit.platform" artifactId="junit-platform-launcher" version="${junit.version}" />
+		<getMavenDependency libDir="lib_test" groupId="org.junit.platform" artifactId="junit-platform-engine" version="${junit.version}" />
+		<getMavenDependency libDir="lib_test" groupId="org.junit.platform" artifactId="junit-platform-commons" version="${junit.version}" />
+		<getMavenDependency libDir="lib_test" groupId="org.opentest4j" artifactId="opentest4j" version="${opentest4j.version}" />
+		<getMavenDependency libDir="lib_test" groupId="org.apiguardian" artifactId="apiguardian-api" version="${apiguardian.version}" />
+		<getMavenDependency libDir="lib_test" groupId="org.junit.platform" artifactId="junit-platform-suite-api" version="${junit.version}" />
+		<getMavenDependency libDir="lib_test" groupId="org.junit.platform" artifactId="junit-platform-suite-engine" version="${junit.version}" />
+	</target>
+
+	<!-- Only if the project has test sources -->
+	<target name="test" depends="create_jar, download_test_dependencies" if="testSourcesAvailable">
+		<!-- The application classes are taken from "bin", because the libraries packed inside the jar (jar in jar) are not on the classpath -->
+		<path id="test.classpath">
+			<fileset dir="lib_test">
+				<include name="*.jar" />
+			</fileset>
+			<path refid="build.classpath" />
+			<pathelement location="${buildPath}/bin" />
+			<pathelement location="${buildPath}/testbin" />
+		</path>
+
+		<mkdir dir="${buildPath}/testbin" />
+		<javac release="17" srcdir="src/test/java" destdir="${buildPath}/testbin" includeantruntime="false" encoding="UTF-8" debug="true" failonerror="true">
+			<classpath refid="test.classpath" />
+			<include name="**/*.java" />
+		</javac>
+
+		<copy todir="${buildPath}/testbin">
+			<fileset dir="src/test/resources" erroronmissingdir="false" />
+		</copy>
+
+		<junitlauncher printSummary="true" failureProperty="test.failed">
+			<classpath refid="test.classpath" />
+			<testclasses outputdir="${buildPath}">
+				<fileset dir="${buildPath}/testbin">
+					<include name="**/*.class" />
+					<!-- Tests that need manual interaction are skipped -->
+					<exclude name="**/*ManuallyTest*.class" />
 				</fileset>
+				<!-- Writes a report per test class to TEST-*.txt, including details of failed tests -->
+				<listener type="legacy-brief" sendSysOut="false" sendSysErr="false" />
+			</testclasses>
+		</junitlauncher>
+
+		<!-- Show which tests failed and why before stopping the build (only reports with failures or errors) -->
+		<concat if:set="test.failed" xmlns:if="ant:if">
+			<fileset dir="${buildPath}" includes="TEST-*.txt">
+				<or>
+					<contains text="FAILED" />
+					<contains text="Caused an ERROR" />
+				</or>
+			</fileset>
+		</concat>
+		<fail if="test.failed" message="Tests failed!" />
+	</target>
+
+	<!-- Only if the project specific part sets "createJavadocJar" -->
+	<target name="create_javadoc" depends="create_jar" if="createJavadocJar">
+		<delete dir="${buildPath}/javadoc" />
+		<mkdir dir="${buildPath}/javadoc" />
+
+		<javadoc destdir="${buildPath}/javadoc" encoding="UTF-8" charset="UTF-8" docencoding="UTF-8" source="17" failonerror="true">
+			<classpath refid="build.classpath" />
+			<arg value="-quiet" />
+			<fileset dir="${sourcePath}" includes="**/*.java" />
+		</javadoc>
+
+		<jar destfile="${buildPath}/${applicationName}-${build.version}-javadoc.jar">
+			<manifest>
+				<attribute name="Version" value="${build.version}" />
+			</manifest>
+
+			<fileset dir="${buildPath}/javadoc" />
+			<fileset dir="." includes="LICENSE.txt" />
+		</jar>
+
+		<delete dir="${buildPath}/javadoc" />
+	</target>
+
+	<target name="sign_jar" depends="create_jar" if="codeSigningPropertiesAvailable">
+		<echo message="TsaUrl: ${TsaUrl}" />
+		<signjar destDir="${buildPath}" alias="${CodeSigningKeyAlias}" keystore="${CodeSigningKeyStore}" storepass="${CodeSigningKeyStorePassword}" keypass="${CodeSigningKeyPassword}" preservelastmodified="true" tsaurl="${TsaUrl}">
+			<path>
+				<fileset dir="${buildPath}" includes="${applicationName}-${build.version}.jar" />
 			</path>
+		</signjar>
+	</target>
 
-			<javac release="17" debug="true" nowarn="true" deprecation="false" destdir="${buildPath}/bin" fork="yes" srcdir="src" includeantruntime="false" encoding="UTF-8" classpath="lib/*">
-				<classpath refid="build.classpath" />
-				<compilerarg value="-Xlint:unchecked" />
-				<compilerarg value="-parameters" />
-			</javac>
+	<!-- Only if the project specific part sets "createUnversionedJar". Runs after sign_jar, so both jars are identical. -->
+	<target name="copy_unversioned_jar" depends="sign_jar" if="createUnversionedJar">
+		<copy file="${buildPath}/${applicationName}-${build.version}.jar" tofile="${buildPath}/${applicationName}.jar" overwrite="true" />
+	</target>
 
-			<copy todir="${buildPath}/bin">
-				<fileset dir="src/main/resources">
-					<include name="**/LanguageProperties*.properties" />
-					<include name="**/*.txt" />
-					<include name="**/*.pem" />
-					<include name="**/*.png" />
-					<include name="**/*.ico" />
-				</fileset>
-			</copy>
+	<target name="cleanup_after">
+		<delete dir="${buildPath}/bin" />
+		<delete dir="${buildPath}/testbin" />
 
-			<replace file="${buildPath}/bin/VersionInfo.txt" token="$${build.version}" value="${build.version}"/>
-		</target>
-
-		<target name="create_versionfile">
-			<basename property="CaPublicKeyFileName" file="${CaPublicKey}"/>
-			<basename property="CaPublicKeyFileNameOld" file="${CaPublicKeyOld}"/>
-
-			<delete file="${buildPath}/bin/application_version.txt" />
-			<echo file="${buildPath}/bin/application_version.txt" append="false">${build.version}${line.separator}${buildTime}${line.separator}${VersionsUrl}${line.separator}${CaPublicKeyFileName}, ${CaPublicKeyFileNameOld}${line.separator}</echo>
-			<delete file="src/main/resources/application_version.txt" />
-			<echo file="src/main/resources/application_version.txt" append="false">${build.version}${line.separator}${buildTime}${line.separator}${VersionsUrl}${line.separator}${CaPublicKeyFileName}, ${CaPublicKeyFileNameOld}${line.separator}</echo>
-		</target>
-
-		<target name="create_jar" depends="create_versionfile, compile">
-			<jar destfile="${buildPath}/HandyBackup-${build.version}.jar">
-				<manifest>
-					<attribute name="Main-Class" value="de.soderer.HandyBackup" />
-					<attribute name="Rsrc-Main-Class" value="de.soderer.handybackup.HandyBackup" />
-					<attribute name="Class-Path" value="." />
-				</manifest>
-
-				<fileset dir="${buildPath}/bin" />
-
-				<zipfileset file="${CaPublicKey}" />
-				<zipfileset file="${CaPublicKeyOld}" />
-				<zipfileset dir="lib" includes="*.jar" excludes="*sources.jar" />
-			</jar>
-		</target>
-
-		<available file="${user.home}/git/codeSigning.properties" property="signingPropertiesAvailable" />
-		<target name="sign_jar" depends="create_jar" if="signingPropertiesAvailable">
-			<signjar destDir="${buildPath}" alias="${CodeSigningKeyAlias}" keystore="${CodeSigningKeyStore}" storepass="${CodeSigningKeyStorePassword}" keypass="${CodeSigningKeyPassword}" preservelastmodified="true" tsaurl="${TsaUrl}">
-				<path>
-					<fileset dir="${buildPath}" includes="HandyBackup-${build.version}.jar" />
-				</path>
-			</signjar>
-		</target>
-
-		<macrodef name="unsignjar">
-			<attribute name="jar" />
-			<sequential>
-				<!-- Remove any existing signatures from a JAR file. -->
-				<tempfile prefix="unsignjar-" destdir="${java.io.tmpdir}" property="temp.file" />
-				<echo message="Removing signatures from JAR: @{jar}" />
-				<mkdir dir="${temp.file}" />
-				<unjar src="@{jar}" dest="${temp.file}">
-					<patternset>
-						<include name="**" />
-						<exclude name="META-INF/*.SF" />
-						<exclude name="META-INF/*.DSA" />
-						<exclude name="META-INF/*.RSA" />
-					</patternset>
-				</unjar>
-				<delete file="@{jar}" failonerror="true" />
-				<!-- Touch META-INF/MANIFEST.MF in case the jar file didn't have a manifest. Otherwise the JAR task below will fail if the manifest file doesn't exist. -->
-				<mkdir dir="${temp.file}/META-INF" />
-				<touch file="${temp.file}/META-INF/MANIFEST.MF" />
-				<jar destfile="@{jar}" basedir="${temp.file}" includes="**" manifest="${temp.file}/META-INF/MANIFEST.MF" />
-				<delete dir="${temp.file}" failonerror="true" />
-			</sequential>
-		</macrodef>
-
-		<target name="cleanup_after">
-			<delete dir="${buildPath}/bin" />
-		</target>
-	</project>
+		<delete includeEmptyDirs="true">
+			<fileset dir="${buildPath}">
+				<include name="TEST-*" />
+			</fileset>
+		</delete>
+	</target>
+</project>
