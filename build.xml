@@ -10,7 +10,7 @@
 		<property name="json.version" value="26.2.8" />
 		<property name="proxyautoconfig.version" value="26.1.4" />
 		<property name="network.version" value="26.0.37" />
-		<property name="soderer-console.version" value="26.0.1" />
+		<property name="soderer-console.version" value="26.0.2" />
 		<property name="soderer-swing.version" value="26.0.2" />
 		<property name="soderer-utilities.version" value="26.2.105" />
 		<property name="soderer-applicationbase.version" value="26.0.3" />
