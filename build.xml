@@ -15,7 +15,7 @@
 		<property name="soderer-utilities.version" value="26.2.105" />
 		<property name="soderer-applicationbase.version" value="26.0.5" />
 
-		<target name="build_jar" depends="build_setup, cleanup_before, create_jar, cleanup_after" />
+		<target name="build_jar" depends="build_setup, cleanup_before, create_jar, sign_jar, cleanup_after" />
 
 		<target name="probe-proxy">
 			<condition property="proxy.enabled">
@@ -66,8 +66,6 @@
 				<format property="buildTime" pattern="yyyy-MM-dd HH:mm:ss" locale="en" />
 			</tstamp>
 			<echo message="buildTime: ${buildTime}" />
-
-			<property file="${user.home}/git/codeSigning.properties" />
 
 			<property name="buildPath" value="build" />
 			<echo message="buildPath: ${buildPath}" />
@@ -133,7 +131,7 @@
 		</target>
 
 		<target name="create_jar" depends="create_versionfile, compile">
-			<jar destfile="${buildPath}/HandyBackup.jar">
+			<jar destfile="${buildPath}/HandyBackup-${build.version}.jar">
 				<manifest>
 					<attribute name="Main-Class" value="de.soderer.HandyBackup" />
 					<attribute name="Rsrc-Main-Class" value="de.soderer.handybackup.HandyBackup" />
@@ -146,14 +144,15 @@
 				<zipfileset file="${CaPublicKeyOld}" />
 				<zipfileset dir="lib" includes="*.jar" excludes="*sources.jar" />
 			</jar>
+		</target>
 
+		<available file="${user.home}/git/codeSigning.properties" property="signingPropertiesAvailable" />
+		<target name="sign_jar" depends="create_jar" if="signingPropertiesAvailable">
 			<signjar destDir="${buildPath}" alias="${CodeSigningKeyAlias}" keystore="${CodeSigningKeyStore}" storepass="${CodeSigningKeyStorePassword}" keypass="${CodeSigningKeyPassword}" preservelastmodified="true" tsaurl="${TsaUrl}">
 				<path>
-					<fileset dir="${buildPath}" includes="HandyBackup.jar" />
+					<fileset dir="${buildPath}" includes="HandyBackup-${build.version}.jar" />
 				</path>
 			</signjar>
-
-			<copy file="${buildPath}/HandyBackup.jar" tofile="${buildPath}/HandyBackup-${build.version}.jar" />
 		</target>
 
 		<macrodef name="unsignjar">
