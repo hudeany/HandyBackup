@@ -3,3 +3,4 @@
 /bin
 /build
 /src/main/resources/application_version.txt
+/build.version
