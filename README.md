@@ -183,7 +183,7 @@ HandyBackup is a plain Java project without a dependency manager and is built wi
 - Package: `de.soderer.handybackup`, startup class `de.soderer.HandyBackup` (jar-in-jar loader)
 - Required libraries:
   - `de.soderer.utilities`: configuration, update, Swing dialogs, `LangResources`, `SmbConnection`
-  - SMB client library used by `SmbConnection` (smbj)
+  - SMB client library used by `SmbConnection` (jcifs)
 - MTP access needs no external library: a PowerShell helper process uses the Windows Portable Devices COM API.
 
 ### Translations
