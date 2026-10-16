@@ -22,8 +22,8 @@
 	<property name="network.version" value="26.0.37" />
 	<property name="soderer-console.version" value="26.0.5" />
 	<property name="soderer-swing.version" value="26.0.4" />
-	<property name="soderer-utilities.version" value="26.2.109" />
-	<property name="soderer-applicationbase.version" value="26.0.13" />
+	<property name="soderer-utilities.version" value="26.2.110" />
+	<property name="soderer-applicationbase.version" value="26.0.14" />
 
 	<patternset id="application.resources">
 		<include name="**/LanguageProperties*.properties" />
