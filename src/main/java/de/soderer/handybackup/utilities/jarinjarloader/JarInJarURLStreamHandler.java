@@ -3,9 +3,17 @@ package de.soderer.handybackup.utilities.jarinjarloader;
 import java.io.IOException;
 import java.net.URL;
 
+/**
+ * Stream handler for the "rsrc:" URL protocol, which addresses resources inside the running application jar.
+ */
 public class JarInJarURLStreamHandler extends java.net.URLStreamHandler {
 	private final ClassLoader classLoader;
 
+	/**
+	 * Creates a stream handler, that reads the resources via the given class loader.
+	 *
+	 * @param classLoader class loader to read the resources with
+	 */
 	public JarInJarURLStreamHandler(final ClassLoader classLoader) {
 		this.classLoader = classLoader;
 	}
