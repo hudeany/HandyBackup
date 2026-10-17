@@ -11,7 +11,7 @@
 	</classpathentry>
 	<classpathentry kind="lib" path="lib/asn-one-0.6.0.jar"/>
 	<classpathentry kind="lib" path="lib/mbassador-1.3.2.jar"/>
-	<classpathentry kind="lib" path="lib/slf4j-api-2.0.17.jar"/>
+	<classpathentry kind="lib" path="lib/slf4j-api-2.0.20.jar"/>
 	<classpathentry kind="lib" path="lib/jcifs-3.0.4.jar"/>
 	<classpathentry kind="lib" path="lib/csv-26.1.10.jar"/>
 	<classpathentry kind="lib" path="lib/proxyautoconfig-26.1.4.jar"/>
