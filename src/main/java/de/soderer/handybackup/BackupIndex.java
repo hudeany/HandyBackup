@@ -11,7 +11,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import de.soderer.utilities.remote.SmbConnection;
+import de.soderer.remote.SmbConnection;
 
 /**
  * Index of all files backed up into one share (one index per share, shared by all devices

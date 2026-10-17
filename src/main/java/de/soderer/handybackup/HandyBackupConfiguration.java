@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
+import de.soderer.applicationbase.ApplicationConfigurationProperties;
 import de.soderer.json.JsonArray;
 import de.soderer.json.JsonNode;
 import de.soderer.json.JsonObject;
@@ -139,7 +140,7 @@ public class HandyBackupConfiguration {
 		}
 	}
 
-	private ConfigurationProperties configurationProperties;
+	private ApplicationConfigurationProperties configurationProperties;
 	private final Map<String, ShareDefinition> shares = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
 	private final Map<String, DeviceAssignment> deviceAssignments = new TreeMap<>();
 
@@ -166,7 +167,7 @@ public class HandyBackupConfiguration {
 	 * daily update check) and the shares and device assignments.
 	 */
 	public synchronized void load() throws Exception {
-		configurationProperties = new ConfigurationProperties(HandyBackup.APPLICATION_NAME, true);
+		configurationProperties = new ApplicationConfigurationProperties(HandyBackup.APPLICATION_NAME, true);
 		configurationProperties.setupDefaultConfig();
 
 		shares.clear();
@@ -180,9 +181,9 @@ public class HandyBackupConfiguration {
 	/**
 	 * The application configuration, e.g. for the configuration dialog. Created empty, if loading failed.
 	 */
-	public synchronized ConfigurationProperties getConfigurationProperties() throws Exception {
+	public synchronized ApplicationConfigurationProperties getConfigurationProperties() throws Exception {
 		if (configurationProperties == null) {
-			configurationProperties = new ConfigurationProperties(HandyBackup.APPLICATION_NAME, true);
+			configurationProperties = new ApplicationConfigurationProperties(HandyBackup.APPLICATION_NAME, true);
 		}
 		return configurationProperties;
 	}

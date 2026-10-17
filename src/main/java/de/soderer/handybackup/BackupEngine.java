@@ -31,9 +31,10 @@ import de.soderer.handybackup.mtp.MtpDevice;
 import de.soderer.handybackup.mtp.MtpErrorType;
 import de.soderer.handybackup.mtp.MtpFile;
 import de.soderer.handybackup.mtp.MtpFileSystem;
+import de.soderer.remote.DirectoryListing;
+import de.soderer.remote.FileInfo;
+import de.soderer.remote.SmbConnection;
 import de.soderer.utilities.LangResources;
-import de.soderer.utilities.remote.FileInfo;
-import de.soderer.utilities.remote.SmbConnection;
 
 /**
  * Backs up files of one MTP device into its assigned share. Which files are backed up is defined
@@ -356,8 +357,8 @@ public class BackupEngine {
 		if (folderFiles == null) {
 			folderFiles = new HashMap<>();
 			if (folderPath.isEmpty() || smbConnection.folderExists(folderPath)) {
-				final var directory = smbConnection.getDirectory(folderPath);
-				for (final FileInfo fileInfo : directory.getSecond()) {
+				final DirectoryListing directory = smbConnection.getDirectory(folderPath);
+				for (final FileInfo fileInfo : directory.files()) {
 					folderFiles.put(fileInfo.getFileName(), fileInfo.getFileSize());
 				}
 			}

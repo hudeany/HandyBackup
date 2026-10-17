@@ -19,8 +19,8 @@ import javax.swing.JPasswordField;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 
+import de.soderer.remote.SmbConnection;
 import de.soderer.utilities.LangResources;
-import de.soderer.utilities.remote.SmbConnection;
 
 /**
  * Dialog for creating or editing a share definition, including a connection test.

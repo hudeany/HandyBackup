@@ -13,8 +13,8 @@ import de.soderer.applicationbase.ApplicationUpdateUtilities;
 import de.soderer.handybackup.mtp.MtpDevice;
 import de.soderer.handybackup.mtp.MtpFileSystem;
 import de.soderer.handybackup.mtp.MtpManager;
+import de.soderer.remote.SmbConnection;
 import de.soderer.utilities.LangResources;
-import de.soderer.utilities.remote.SmbConnection;
 
 /**
  * Command line interface of HandyBackup, e.g. for scheduled backups via the Windows task scheduler.

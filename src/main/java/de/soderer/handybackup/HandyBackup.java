@@ -64,6 +64,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.WindowConstants;
 
 import de.soderer.applicationbase.ApplicationConfigurationDialog;
+import de.soderer.applicationbase.ApplicationConfigurationProperties;
 import de.soderer.applicationbase.ApplicationUpdateUtilities;
 import de.soderer.applicationbase.UpdateableGuiApplication;
 import de.soderer.handybackup.mtp.MtpDevice;
@@ -71,6 +72,10 @@ import de.soderer.handybackup.mtp.MtpErrorType;
 import de.soderer.handybackup.mtp.MtpFile;
 import de.soderer.handybackup.mtp.MtpFileSystem;
 import de.soderer.handybackup.mtp.MtpManager;
+import de.soderer.remote.DirectoryListing;
+import de.soderer.remote.FileInfo;
+import de.soderer.remote.FolderInfo;
+import de.soderer.remote.SmbConnection;
 import de.soderer.swing.ErrorDialog;
 import de.soderer.utilities.ConfigurationProperties;
 import de.soderer.utilities.DateUtilities;
@@ -79,9 +84,6 @@ import de.soderer.utilities.LangResources;
 import de.soderer.utilities.Result;
 import de.soderer.utilities.Utilities;
 import de.soderer.utilities.Version;
-import de.soderer.utilities.remote.FileInfo;
-import de.soderer.utilities.remote.FolderInfo;
-import de.soderer.utilities.remote.SmbConnection;
 
 /**
  * HandyBackup: backs up images, videos and contacts of Android phones (connected via USB in "File transfer"
@@ -754,11 +756,11 @@ public class HandyBackup extends UpdateableGuiApplication {
 			return result;
 		}
 		final String prefix = folder.path().isEmpty() ? "" : folder.path() + "/";
-		final var directory = connection.getDirectory(folder.path());
-		for (final FolderInfo folderInfo : directory.getFirst()) {
+		final DirectoryListing directory = connection.getDirectory(folder.path());
+		for (final FolderInfo folderInfo : directory.folders()) {
 			result.add(new TreeEntry(folderInfo.getFolderName(), prefix + folderInfo.getFolderName(), true, -1, toLocalDateTime(folderInfo.getModificationDate()), false));
 		}
-		for (final FileInfo fileInfo : directory.getSecond()) {
+		for (final FileInfo fileInfo : directory.files()) {
 			result.add(new TreeEntry(fileInfo.getFileName(), prefix + fileInfo.getFileName(), false, fileInfo.getFileSize(), toLocalDateTime(fileInfo.getModificationDate()), false));
 		}
 		return result;
@@ -1992,7 +1994,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 		if (Utilities.isNotBlank(VERSIONINFO_DOWNLOAD_URL) && dailyUpdateCheckIsPending()) {
 			setDailyUpdateCheckStatus(true);
 			try {
-				final ConfigurationProperties applicationConfiguration = configuration.getConfigurationProperties();
+				final ApplicationConfigurationProperties applicationConfiguration = configuration.getConfigurationProperties();
 				if (ApplicationUpdateUtilities.checkForNewVersionAvailable(VERSIONINFO_DOWNLOAD_URL, applicationConfiguration.getProxyConfiguration(), APPLICATION_NAME, VERSION) != null) {
 					ApplicationUpdateUtilities.executeUpdate(this, VERSIONINFO_DOWNLOAD_URL, applicationConfiguration.getProxyConfiguration(), APPLICATION_NAME, VERSION, TRUSTED_UPDATE_CA_CERTIFICATES, null, null, null, true, false);
 				}
@@ -2006,8 +2008,8 @@ public class HandyBackup extends UpdateableGuiApplication {
 	protected void setDailyUpdateCheckStatus(final boolean checkboxStatus) {
 		try {
 			final ConfigurationProperties applicationConfiguration = configuration.getConfigurationProperties();
-			applicationConfiguration.set(ConfigurationProperties.CONFIG_KEY_DAILY_UPDATE_CHECK, checkboxStatus);
-			applicationConfiguration.set(ConfigurationProperties.CONFIG_KEY_NEXT_DAILY_UPDATE_CHECK, LocalDateTime.now().plusDays(1));
+			applicationConfiguration.set(ApplicationConfigurationProperties.CONFIG_KEY_DAILY_UPDATE_CHECK, checkboxStatus);
+			applicationConfiguration.set(ApplicationConfigurationProperties.CONFIG_KEY_NEXT_DAILY_UPDATE_CHECK, LocalDateTime.now().plusDays(1));
 			applicationConfiguration.save();
 		} catch (final Exception e) {
 			log(LangResources.get("logError", LangResources.get("updateSettingSaveFailed", e.getMessage())));
@@ -2017,7 +2019,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 	@Override
 	protected Boolean isDailyUpdateCheckActivated() {
 		try {
-			return configuration.getConfigurationProperties().getBoolean(ConfigurationProperties.CONFIG_KEY_DAILY_UPDATE_CHECK);
+			return configuration.getConfigurationProperties().getBoolean(ApplicationConfigurationProperties.CONFIG_KEY_DAILY_UPDATE_CHECK);
 		} catch (@SuppressWarnings("unused") final Exception e) {
 			return false;
 		}
@@ -2026,8 +2028,8 @@ public class HandyBackup extends UpdateableGuiApplication {
 	private boolean dailyUpdateCheckIsPending() {
 		try {
 			final ConfigurationProperties applicationConfiguration = configuration.getConfigurationProperties();
-			final LocalDateTime nextCheck = applicationConfiguration.getDate(ConfigurationProperties.CONFIG_KEY_NEXT_DAILY_UPDATE_CHECK);
-			return applicationConfiguration.getBoolean(ConfigurationProperties.CONFIG_KEY_DAILY_UPDATE_CHECK) && (nextCheck == null || nextCheck.isBefore(LocalDateTime.now()));
+			final LocalDateTime nextCheck = applicationConfiguration.getDate(ApplicationConfigurationProperties.CONFIG_KEY_NEXT_DAILY_UPDATE_CHECK);
+			return applicationConfiguration.getBoolean(ApplicationConfigurationProperties.CONFIG_KEY_DAILY_UPDATE_CHECK) && (nextCheck == null || nextCheck.isBefore(LocalDateTime.now()));
 		} catch (@SuppressWarnings("unused") final Exception e) {
 			return false;
 		}
