@@ -21,10 +21,10 @@
 	<property name="proxyautoconfig.version" value="26.1.5" />
 	<property name="network.version" value="26.0.39" />
 	<property name="soderer-console.version" value="26.0.9" />
-	<property name="soderer-swing.version" value="26.0.12" />
-	<property name="soderer-utilities.version" value="26.2.117" />
-	<property name="soderer-remote.version" value="26.0.6" />
-	<property name="soderer-applicationbase.version" value="26.0.27" />
+	<property name="soderer-swing.version" value="26.0.13" />
+	<property name="soderer-utilities.version" value="26.2.118" />
+	<property name="soderer-remote.version" value="26.0.7" />
+	<property name="soderer-applicationbase.version" value="26.0.28" />
 
 	<patternset id="application.resources">
 		<include name="**/LanguageProperties*.properties" />
