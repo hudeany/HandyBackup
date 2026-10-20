@@ -13,7 +13,6 @@ import de.soderer.applicationbase.ApplicationUpdateUtilities;
 import de.soderer.handybackup.mtp.MtpDevice;
 import de.soderer.handybackup.mtp.MtpFileSystem;
 import de.soderer.handybackup.mtp.MtpManager;
-import de.soderer.remote.SmbConnection;
 import de.soderer.utilities.LangResources;
 
 /**
@@ -258,12 +257,9 @@ public class HandyBackupCli {
 	private boolean backupDevice(final MtpManager mtpManager, final MtpDevice device, final ShareDefinition share, final int deleteAfterDays, final boolean delete) throws Exception {
 		System.out.println(LangResources.get("backupStarted", device.name(), share.getDisplayPath()));
 
-		final char[] password = share.getPassword();
 		try (MtpFileSystem fileSystem = mtpManager.open(device);
-				SmbConnection smbConnection = new SmbConnection(share.getHostname(), share.getPort(), share.getUsername(), share.getSharename(), password)) {
-			Arrays.fill(password, '\0');
-
-			final BackupEngine engine = new BackupEngine(fileSystem, device, smbConnection, share, configuration.getBackupFolders(device.serialNumber()), createListener());
+				BackupTarget backupTarget = BackupTarget.open(share)) {
+			final BackupEngine engine = new BackupEngine(fileSystem, device, backupTarget, share, configuration.getBackupFolders(device.serialNumber()), createListener());
 			runningEngine = engine;
 			final BackupEngine.BackupResult result;
 			try {
@@ -314,8 +310,6 @@ public class HandyBackupCli {
 			endProgress();
 			printError(LangResources.get("logError", LangResources.get("cliBackupFailed", device.name(), describe(e))));
 			return false;
-		} finally {
-			Arrays.fill(password, '\0');
 		}
 	}
 

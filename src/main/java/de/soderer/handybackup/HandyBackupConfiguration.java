@@ -28,7 +28,7 @@ import de.soderer.utilities.ConfigurationProperties;
  * <ul>
  * <li>".HandyBackup.config": application settings (language, proxy, update check) via
  * {@link ConfigurationProperties}, editable in the configuration dialog</li>
- * <li>".HandyBackup.devices.json": shares and device assignments (JSON format)</li>
+ * <li>".HandyBackup.devices.json": backup targets ("shares": Samba shares or local folders) and device assignments (JSON format)</li>
  * </ul>
  *
  * Devices are identified by the MTP serial number (as shown in Explorer's device properties).
@@ -37,7 +37,8 @@ import de.soderer.utilities.ConfigurationProperties;
  * <pre>
  * {
  * 	"shares": [
- * 		{ "name": "...", "hostname": "...", "port": 445, "sharename": "...", "basePath": "...", "username": "...", "password": "&lt;DPAPI encrypted&gt;" }
+ * 		{ "name": "...", "type": "smb", "hostname": "...", "port": 445, "sharename": "...", "basePath": "...", "username": "...", "password": "&lt;DPAPI encrypted&gt;" },
+ * 		{ "name": "...", "type": "local", "localPath": "D:\\Backup" }
  * 	],
  * 	"devices": [
  * 		{
@@ -49,6 +50,7 @@ import de.soderer.utilities.ConfigurationProperties;
  * 	]
  * }
  * </pre>
+ * "type": "smb" (default, also for entries of former versions without type) or "local".
  * "deleteExclusions": device folders that are never deleted automatically,
  * "deleteReleases": device folders whose default exclusion from {@link StoragePaths} is lifted,
  * "backupFolders": device folders backed up in addition to {@link StoragePaths}, see {@link BackupFolder}.
@@ -56,6 +58,10 @@ import de.soderer.utilities.ConfigurationProperties;
 public class HandyBackupConfiguration {
 	private static final String JSON_SHARES = "shares";
 	private static final String JSON_SHARE_NAME = "name";
+	private static final String JSON_SHARE_TYPE = "type";
+	private static final String JSON_SHARE_TYPE_SMB = "smb";
+	private static final String JSON_SHARE_TYPE_LOCAL = "local";
+	private static final String JSON_SHARE_LOCAL_PATH = "localPath";
 	private static final String JSON_SHARE_HOSTNAME = "hostname";
 	private static final String JSON_SHARE_PORT = "port";
 	private static final String JSON_SHARE_SHARENAME = "sharename";
@@ -214,8 +220,18 @@ public class HandyBackupConfiguration {
 			if (name == null || name.isBlank()) {
 				continue;
 			}
+			final String type = getString(shareObject, JSON_SHARE_TYPE);
 			final ShareDefinition share = new ShareDefinition();
 			share.setName(name);
+			if (JSON_SHARE_TYPE_LOCAL.equalsIgnoreCase(type)) {
+				share.setType(ShareDefinition.TargetType.LOCAL);
+				share.setLocalPath(getString(shareObject, JSON_SHARE_LOCAL_PATH));
+				shares.put(share.getName(), share);
+				continue;
+			} else if (type != null && !type.isBlank() && !JSON_SHARE_TYPE_SMB.equalsIgnoreCase(type)) {
+				// Unknown type, e.g. written by a newer version
+				continue;
+			}
 			share.setHostname(nullToEmpty(getString(shareObject, JSON_SHARE_HOSTNAME)));
 			share.setPort(parsePort(getString(shareObject, JSON_SHARE_PORT)));
 			share.setSharename(nullToEmpty(getString(shareObject, JSON_SHARE_SHARENAME)));
@@ -258,8 +274,16 @@ public class HandyBackupConfiguration {
 	public synchronized void save() throws Exception {
 		final JsonArray sharesArray = new JsonArray();
 		for (final ShareDefinition share : shares.values()) {
+			if (share.isLocal()) {
+				sharesArray.add(new JsonObject()
+					.add(JSON_SHARE_NAME, share.getName())
+					.add(JSON_SHARE_TYPE, JSON_SHARE_TYPE_LOCAL)
+					.add(JSON_SHARE_LOCAL_PATH, share.getLocalPath()));
+				continue;
+			}
 			final JsonObject shareObject = new JsonObject()
 				.add(JSON_SHARE_NAME, share.getName())
+				.add(JSON_SHARE_TYPE, JSON_SHARE_TYPE_SMB)
 				.add(JSON_SHARE_HOSTNAME, nullToEmpty(share.getHostname()))
 				.add(JSON_SHARE_PORT, share.getPort())
 				.add(JSON_SHARE_SHARENAME, nullToEmpty(share.getSharename()))

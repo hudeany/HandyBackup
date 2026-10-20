@@ -25,7 +25,6 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -75,7 +74,6 @@ import de.soderer.handybackup.mtp.MtpManager;
 import de.soderer.remote.DirectoryListing;
 import de.soderer.remote.FileInfo;
 import de.soderer.remote.FolderInfo;
-import de.soderer.remote.SmbConnection;
 import de.soderer.swing.ErrorDialog;
 import de.soderer.utilities.ConfigurationProperties;
 import de.soderer.utilities.DateUtilities;
@@ -87,10 +85,11 @@ import de.soderer.utilities.Version;
 
 /**
  * HandyBackup: backs up images, videos and contacts of Android phones (connected via USB in "File transfer"
- * mode, MTP) into Samba shares.
+ * mode, MTP) into Samba shares or folders on the local computer.
  *
- * Each device is identified by its MTP serial number and assigned to one share; one share may
- * be used by several devices (e.g. old and new phone of the same person).
+ * Each device is identified by its MTP serial number and assigned to one backup target ("share", a Samba share
+ * or a local folder, see {@link ShareDefinition}); one target may be used by several devices (e.g. old and new
+ * phone of the same person).
  *
  * Left side: folder tree of the connected device (folders that are backed up are bold).
  * Right side: folder tree of the assigned share.
@@ -168,7 +167,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 	// Only accessed in the IO thread
 	private MtpManager mtpManager;
 	private MtpFileSystem currentFileSystem;
-	private final Map<String, SmbConnection> smbConnections = new HashMap<>();
+	private final Map<String, BackupTarget> backupTargets = new HashMap<>();
 
 	// Only accessed in the event dispatch thread
 	private MtpDevice currentDevice;
@@ -732,7 +731,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 		shareTree.clear(LangResources.get("connectingTo", share.getDisplayPath()));
 		ioExecutor.submit(() -> {
 			try {
-				final SmbConnection connection = getSmbConnection(share);
+				final BackupTarget connection = getBackupTarget(share);
 				SwingUtilities.invokeLater(() -> {
 					if (share == getAssignedShare()) {
 						final TreeEntry root = new TreeEntry(share.getDisplayPath(), share.getBasePath(), true, -1, null, false);
@@ -749,7 +748,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 	}
 
 	/** Called in the IO thread */
-	private static List<TreeEntry> loadShareFolder(final SmbConnection connection, final ShareDefinition share, final TreeEntry folder) throws Exception {
+	private static List<TreeEntry> loadShareFolder(final BackupTarget connection, final ShareDefinition share, final TreeEntry folder) throws Exception {
 		final List<TreeEntry> result = new ArrayList<>();
 		if (folder.path().equals(share.getBasePath()) && !share.getBasePath().isEmpty() && !connection.folderExists(share.getBasePath())) {
 			// Base folder is created by the first backup
@@ -771,41 +770,36 @@ public class HandyBackup extends UpdateableGuiApplication {
 	}
 
 	/**
-	 * Returns an open connection to the share, one per share. Called in the IO thread.
+	 * Returns the open access to a backup target (Samba share or local folder), one per target. Called in the IO thread.
 	 */
-	private SmbConnection getSmbConnection(final ShareDefinition share) throws Exception {
+	private BackupTarget getBackupTarget(final ShareDefinition share) throws Exception {
 		final String key = share.getName().toLowerCase(Locale.ROOT);
-		SmbConnection connection = smbConnections.get(key);
-		if (connection == null) {
-			final char[] password = share.getPassword();
-			try {
-				connection = new SmbConnection(share.getHostname(), share.getPort(), share.getUsername(), share.getSharename(), password);
-			} finally {
-				Arrays.fill(password, '\0');
-			}
-			smbConnections.put(key, connection);
+		BackupTarget backupTarget = backupTargets.get(key);
+		if (backupTarget == null) {
+			backupTarget = BackupTarget.open(share);
+			backupTargets.put(key, backupTarget);
 		}
-		return connection;
+		return backupTarget;
 	}
 
 	private void onManageShares() {
 		if (new ShareManagementDialog(this, configuration).showDialog()) {
-			// Share settings may have changed: drop all connections, they are re-established on demand
-			ioExecutor.submit(this::closeSmbConnections);
+			// Target settings may have changed: drop all connections, they are re-established on demand
+			ioExecutor.submit(this::closeBackupTargets);
 			fillShareCombo();
 		}
 	}
 
 	/** Called in the IO thread */
-	private void closeSmbConnections() {
-		for (final SmbConnection connection : smbConnections.values()) {
+	private void closeBackupTargets() {
+		for (final BackupTarget backupTarget : backupTargets.values()) {
 			try {
-				connection.close();
+				backupTarget.close();
 			} catch (@SuppressWarnings("unused") final Exception e) {
 				// ignore
 			}
 		}
-		smbConnections.clear();
+		backupTargets.clear();
 	}
 
 	// ---------------------------------------------------------------- backup
@@ -852,7 +846,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 				if (currentFileSystem == null) {
 					throw new Exception(LangResources.get("deviceNotOpen"));
 				}
-				engine = new BackupEngine(currentFileSystem, device, getSmbConnection(share), share, configuration.getBackupFolders(device.serialNumber()), listener);
+				engine = new BackupEngine(currentFileSystem, device, getBackupTarget(share), share, configuration.getBackupFolders(device.serialNumber()), listener);
 				runningBackup = engine;
 				if (cancelRequested) {
 					engine.cancel();
@@ -1312,7 +1306,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 				indexProblem = LangResources.get("statusUnknownNoSerial");
 			} else {
 				try {
-					index = BackupIndex.load(getSmbConnection(share), share);
+					index = BackupIndex.load(getBackupTarget(share), share);
 				} catch (final Throwable e) {
 					indexProblem = LangResources.get("statusUnknownIndexError", e.getMessage());
 				}
@@ -1477,7 +1471,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 			String indexProblem = null;
 			BackupIndex index = null;
 			try {
-				index = BackupIndex.load(getSmbConnection(share), share);
+				index = BackupIndex.load(getBackupTarget(share), share);
 			} catch (final Throwable e) {
 				indexProblem = LangResources.get("indexReadError", e.getMessage());
 			}
@@ -1529,7 +1523,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 		if (items.size() == 1) {
 			final TreeEntry entry = items.get(0).entry();
 			question.append(LangResources.get("shareDeleteQuestionSingle", entry.name(), LazyTree.formatSize(entry.size()),
-				share.getDisplayPath() + "\\" + items.get(0).relativePath().replace("/", "\\")));
+				share.getDisplayPath(items.get(0).relativePath())));
 		} else {
 			question.append(LangResources.get("shareDeleteQuestionMultiple", items.size(), formatSize(totalBytes), share.getDisplayPath()));
 			final int shownNames = Math.min(items.size(), 10);
@@ -1571,7 +1565,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 			String indexError = null;
 			BackupIndex index = null;
 			try {
-				final SmbConnection connection = getSmbConnection(share);
+				final BackupTarget connection = getBackupTarget(share);
 				// Reloaded, so the index is current when it is saved again
 				index = BackupIndex.load(connection, share);
 				for (final ShareDeletionItem item : items) {
@@ -1591,7 +1585,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 			} finally {
 				if (index != null && index.isChanged()) {
 					try {
-						index.save(getSmbConnection(share), share);
+						index.save(getBackupTarget(share), share);
 					} catch (final Throwable e) {
 						indexError = LangResources.get("indexSaveFailed", e.getMessage());
 					}
@@ -1668,7 +1662,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 		setBusy(LangResources.get("loadingForView", entry.name()));
 		ioExecutor.submit(() -> {
 			try {
-				final SmbConnection connection = getSmbConnection(share);
+				final BackupTarget connection = getBackupTarget(share);
 				final File localFile = createViewFile(entry.name());
 				final File partFile = new File(localFile.getPath() + ".part");
 				try (InputStream inputStream = connection.downloadFile(entry.path())) {
@@ -2080,7 +2074,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 		// Runs after a running backup has finished its current file and saved the index
 		ioExecutor.submit(() -> {
 			closeFileSystem();
-			closeSmbConnections();
+			closeBackupTargets();
 			deleteViewFolder(viewFolder);
 			if (mtpManager != null) {
 				try {

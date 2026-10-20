@@ -11,10 +11,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import de.soderer.remote.SmbConnection;
 
 /**
- * Index of all files backed up into one share (one index per share, shared by all devices
+ * Index of all files backed up into one backup target (one index per target, shared by all devices
  * assigned to it). Stored as tab separated text file in "&lt;basePath&gt;/.handybackup/index.tsv".
  *
  * Used for:
@@ -47,20 +46,20 @@ public class BackupIndex {
 	private boolean changed = false;
 
 	/**
-	 * Loads the index from the share. Falls back to the backup copy if the index file is missing
+	 * Loads the index from the backup target. Falls back to the backup copy if the index file is missing
 	 * (e.g. after an interrupted save). Returns an empty index if neither exists.
 	 */
-	public static BackupIndex load(final SmbConnection smbConnection, final ShareDefinition share) throws Exception {
+	public static BackupIndex load(final BackupTarget backupTarget, final ShareDefinition share) throws Exception {
 		final BackupIndex index = new BackupIndex();
 		String indexPath = share.resolve(INDEX_FILE);
-		if (!smbConnection.fileExists(indexPath)) {
+		if (!backupTarget.fileExists(indexPath)) {
 			indexPath = indexPath + ".bak";
-			if (!smbConnection.fileExists(indexPath)) {
+			if (!backupTarget.fileExists(indexPath)) {
 				return index;
 			}
 		}
 
-		try (InputStream inputStream = smbConnection.downloadFile(indexPath);
+		try (InputStream inputStream = backupTarget.downloadFile(indexPath);
 				BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
 			String line;
 			int lineNumber = 0;
@@ -80,10 +79,10 @@ public class BackupIndex {
 	}
 
 	/**
-	 * Saves the index to the share: the new content is written to a temporary file, the old index
+	 * Saves the index to the backup target: the new content is written to a temporary file, the old index
 	 * is kept as ".bak" and the temporary file is then renamed to the index file.
 	 */
-	public synchronized void save(final SmbConnection smbConnection, final ShareDefinition share) throws Exception {
+	public synchronized void save(final BackupTarget backupTarget, final ShareDefinition share) throws Exception {
 		final StringBuilder content = new StringBuilder(HEADER).append("\n");
 		for (final Entry entry : entries) {
 			content.append(entry.sha256()).append('\t')
@@ -97,15 +96,15 @@ public class BackupIndex {
 
 		final String indexPath = share.resolve(INDEX_FILE);
 		final String tempPath = indexPath + ".tmp";
-		smbConnection.createFolderPath(share.resolve(INDEX_FOLDER));
-		if (smbConnection.fileExists(tempPath)) {
-			smbConnection.deleteFile(tempPath);
+		backupTarget.createFolderPath(share.resolve(INDEX_FOLDER));
+		if (backupTarget.fileExists(tempPath)) {
+			backupTarget.deleteFile(tempPath);
 		}
-		smbConnection.uploadFile(tempPath, new ByteArrayInputStream(content.toString().getBytes(StandardCharsets.UTF_8)));
-		if (smbConnection.fileExists(indexPath)) {
-			smbConnection.renameFile(indexPath, indexPath + ".bak", true);
+		backupTarget.uploadFile(tempPath, new ByteArrayInputStream(content.toString().getBytes(StandardCharsets.UTF_8)));
+		if (backupTarget.fileExists(indexPath)) {
+			backupTarget.renameFile(indexPath, indexPath + ".bak", true);
 		}
-		smbConnection.renameFile(tempPath, indexPath, false);
+		backupTarget.renameFile(tempPath, indexPath, false);
 		changed = false;
 	}
 

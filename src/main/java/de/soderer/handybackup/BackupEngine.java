@@ -33,11 +33,10 @@ import de.soderer.handybackup.mtp.MtpFile;
 import de.soderer.handybackup.mtp.MtpFileSystem;
 import de.soderer.remote.DirectoryListing;
 import de.soderer.remote.FileInfo;
-import de.soderer.remote.SmbConnection;
 import de.soderer.utilities.LangResources;
 
 /**
- * Backs up files of one MTP device into its assigned share. Which files are backed up is defined
+ * Backs up files of one MTP device into its assigned backup target (Samba share or local folder). Which files are backed up is defined
  * per folder in {@link StoragePaths} (images, videos, contacts or all files) and by the folders added
  * for the device ({@link BackupFolder}); for overlapping folders the most specific one decides.
  *
@@ -86,7 +85,7 @@ public class BackupEngine {
 
 	private final MtpFileSystem mtpFileSystem;
 	private final MtpDevice device;
-	private final SmbConnection smbConnection;
+	private final BackupTarget backupTarget;
 	private final ShareDefinition share;
 	private final BackupListener listener;
 	private final List<BackupFolder> customBackupFolders;
@@ -104,11 +103,11 @@ public class BackupEngine {
 	 * @param customBackupFolders folders added for this device in addition to {@link StoragePaths}, may be empty;
 	 *                            a copy is kept, so changes during the backup take effect with the next backup
 	 */
-	public BackupEngine(final MtpFileSystem mtpFileSystem, final MtpDevice device, final SmbConnection smbConnection, final ShareDefinition share, final Collection<BackupFolder> customBackupFolders, final BackupListener listener) {
+	public BackupEngine(final MtpFileSystem mtpFileSystem, final MtpDevice device, final BackupTarget backupTarget, final ShareDefinition share, final Collection<BackupFolder> customBackupFolders, final BackupListener listener) {
 		this.mtpFileSystem = mtpFileSystem;
 		this.customBackupFolders = customBackupFolders == null ? List.of() : List.copyOf(customBackupFolders);
 		this.device = device;
-		this.smbConnection = smbConnection;
+		this.backupTarget = backupTarget;
 		this.share = share;
 		this.listener = listener;
 	}
@@ -148,7 +147,7 @@ public class BackupEngine {
 		}
 
 		listener.onLog(LangResources.get("readingBackupIndex", share.getDisplayPath()));
-		final BackupIndex index = BackupIndex.load(smbConnection, share);
+		final BackupIndex index = BackupIndex.load(backupTarget, share);
 		backupIndex = index;
 		listener.onLog(LangResources.get("indexEntries", index.size()));
 
@@ -196,7 +195,7 @@ public class BackupEngine {
 				}
 
 				if (unsavedIndexChanges >= INDEX_SAVE_INTERVAL) {
-					index.save(smbConnection, share);
+					index.save(backupTarget, share);
 					unsavedIndexChanges = 0;
 				}
 				done++;
@@ -204,7 +203,7 @@ public class BackupEngine {
 		} finally {
 			if (index.isChanged()) {
 				listener.onLog(LangResources.get("savingBackupIndex"));
-				index.save(smbConnection, share);
+				index.save(backupTarget, share);
 			}
 		}
 
@@ -356,8 +355,8 @@ public class BackupEngine {
 		Map<String, Long> folderFiles = folderCache.get(folderPath);
 		if (folderFiles == null) {
 			folderFiles = new HashMap<>();
-			if (folderPath.isEmpty() || smbConnection.folderExists(folderPath)) {
-				final DirectoryListing directory = smbConnection.getDirectory(folderPath);
+			if (folderPath.isEmpty() || backupTarget.folderExists(folderPath)) {
+				final DirectoryListing directory = backupTarget.getDirectory(folderPath);
 				for (final FileInfo fileInfo : directory.files()) {
 					folderFiles.put(fileInfo.getFileName(), fileInfo.getFileSize());
 				}
@@ -391,22 +390,22 @@ public class BackupEngine {
 			// Date for the folder structure; MTP modification date for now (EXIF etc. may follow)
 			final LocalDateTime date = mediaFile.modified() != null ? mediaFile.modified() : LocalDateTime.now();
 			final String relativeFolder = String.format(Locale.ROOT, "%04d/%04d-%02d", date.getYear(), date.getYear(), date.getMonthValue());
-			smbConnection.createFolderPath(share.resolve(relativeFolder));
+			backupTarget.createFolderPath(share.resolve(relativeFolder));
 
 			final String relativeTargetPath = findFreeTargetPath(relativeFolder, mediaFile.name());
 			final String targetPath = share.resolve(relativeTargetPath);
 			final String partPath = targetPath + PART_SUFFIX;
-			if (smbConnection.fileExists(partPath)) {
+			if (backupTarget.fileExists(partPath)) {
 				// Leftover of an interrupted earlier run
-				smbConnection.deleteFile(partPath);
+				backupTarget.deleteFile(partPath);
 			}
 			try (InputStream inputStream = Files.newInputStream(tempFile.toPath())) {
-				smbConnection.uploadFile(partPath, inputStream);
+				backupTarget.uploadFile(partPath, inputStream);
 			}
 			// Rename only after a complete upload, so the share never contains half written media files
-			smbConnection.renameFile(partPath, targetPath, false);
+			backupTarget.renameFile(partPath, targetPath, false);
 			if (sourceModified >= 0) {
-				smbConnection.setLastModified(targetPath, sourceModified);
+				backupTarget.setLastModified(targetPath, sourceModified);
 			}
 
 			index.add(new BackupIndex.Entry(sha256, size, relativeTargetPath, device.serialNumber(), mediaFile.path(), sourceModified, backupTime));
@@ -425,7 +424,7 @@ public class BackupEngine {
 		final String baseName = dotIndex > 0 ? fileName.substring(0, dotIndex) : fileName;
 		final String extension = dotIndex > 0 ? fileName.substring(dotIndex) : "";
 		String candidate = relativeFolder + "/" + fileName;
-		for (int suffix = 1; smbConnection.fileExists(share.resolve(candidate)); suffix++) {
+		for (int suffix = 1; backupTarget.fileExists(share.resolve(candidate)); suffix++) {
 			candidate = relativeFolder + "/" + baseName + "_" + suffix + extension;
 		}
 		return candidate;

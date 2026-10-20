@@ -23,8 +23,8 @@ import javax.swing.ListSelectionModel;
 import de.soderer.utilities.LangResources;
 
 /**
- * Dialog for managing the Samba shares (add, edit, delete). Shows which devices are assigned to
- * the selected share.
+ * Dialog for managing the backup targets, Samba shares and local folders (add, edit, delete).
+ * Shows which devices are assigned to the selected target.
  */
 public class ShareManagementDialog extends JDialog {
 	private static final long serialVersionUID = 1L;
@@ -117,7 +117,9 @@ public class ShareManagementDialog extends JDialog {
 			detailLabel.setText(" ");
 			return;
 		}
-		final StringBuilder text = new StringBuilder("<html>").append(escapeHtml(share.getDisplayPath())).append("<br>").append(escapeHtml(LangResources.get("devicesLabel"))).append(" ");
+		final StringBuilder text = new StringBuilder("<html>")
+			.append(escapeHtml(LangResources.get(share.isLocal() ? "targetTypeLocal" : "targetTypeSmb"))).append(": ")
+			.append(escapeHtml(share.getDisplayPath())).append("<br>").append(escapeHtml(LangResources.get("devicesLabel"))).append(" ");
 		final List<HandyBackupConfiguration.DeviceAssignment> assignments = configuration.getAssignmentsOfShare(share.getName());
 		if (assignments.isEmpty()) {
 			text.append("<i>").append(escapeHtml(LangResources.get("noDevices"))).append("</i>");
@@ -134,7 +136,17 @@ public class ShareManagementDialog extends JDialog {
 	}
 
 	private void onAdd() {
-		final ShareDefinition share = new ShareEditDialog(this, configuration, null).showDialog();
+		final Object[] options = { LangResources.get("targetTypeSmb"), LangResources.get("targetTypeLocal"), LangResources.get("cancel") };
+		final int choice = JOptionPane.showOptionDialog(this, LangResources.get("newTargetQuestion"), LangResources.get("newTargetTitle"),
+			JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
+		final ShareDefinition share;
+		if (choice == 0) {
+			share = new ShareEditDialog(this, configuration, null).showDialog();
+		} else if (choice == 1) {
+			share = new LocalTargetEditDialog(this, configuration, null).showDialog();
+		} else {
+			return;
+		}
 		if (share != null) {
 			configuration.putShare(null, share);
 			save();
@@ -147,7 +159,9 @@ public class ShareManagementDialog extends JDialog {
 		if (selected == null) {
 			return;
 		}
-		final ShareDefinition share = new ShareEditDialog(this, configuration, selected).showDialog();
+		final ShareDefinition share = selected.isLocal()
+			? new LocalTargetEditDialog(this, configuration, selected).showDialog()
+			: new ShareEditDialog(this, configuration, selected).showDialog();
 		if (share != null) {
 			configuration.putShare(selected.getName(), share);
 			save();
