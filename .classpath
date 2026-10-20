@@ -22,6 +22,6 @@
 	<classpathentry kind="lib" path="lib/bcprov-jdk18on-1.86.jar"/>
 	<classpathentry kind="lib" path="lib/soderer-applicationbase-26.0.32.jar"/>
 	<classpathentry kind="lib" path="lib/soderer-console-26.0.10.jar"/>
-	<classpathentry kind="lib" path="lib/soderer-remote-26.0.8.jar"/>
+	<classpathentry kind="lib" path="lib/soderer-remote-26.0.9.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
