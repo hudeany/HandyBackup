@@ -13,15 +13,15 @@
 	<classpathentry kind="lib" path="lib/mbassador-1.3.2.jar"/>
 	<classpathentry kind="lib" path="lib/slf4j-api-2.0.20.jar"/>
 	<classpathentry kind="lib" path="lib/jcifs-3.0.4.jar"/>
-	<classpathentry kind="lib" path="lib/csv-26.1.12.jar"/>
+	<classpathentry kind="lib" path="lib/csv-26.1.13.jar"/>
 	<classpathentry kind="lib" path="lib/proxyautoconfig-26.1.5.jar"/>
 	<classpathentry kind="lib" path="lib/network-26.0.39.jar"/>
-	<classpathentry kind="lib" path="lib/json-26.2.12.jar"/>
-	<classpathentry kind="lib" path="lib/soderer-utilities-26.2.122.jar"/>
-	<classpathentry kind="lib" path="lib/soderer-swing-26.0.22.jar"/>
+	<classpathentry kind="lib" path="lib/json-26.2.13.jar"/>
+	<classpathentry kind="lib" path="lib/soderer-utilities-26.2.123.jar"/>
+	<classpathentry kind="lib" path="lib/soderer-swing-26.0.24.jar"/>
 	<classpathentry kind="lib" path="lib/bcprov-jdk18on-1.86.jar"/>
-	<classpathentry kind="lib" path="lib/soderer-applicationbase-26.0.35.jar"/>
-	<classpathentry kind="lib" path="lib/soderer-console-26.0.10.jar"/>
-	<classpathentry kind="lib" path="lib/soderer-remote-26.0.12.jar"/>
+	<classpathentry kind="lib" path="lib/soderer-applicationbase-26.0.36.jar"/>
+	<classpathentry kind="lib" path="lib/soderer-console-26.0.11.jar"/>
+	<classpathentry kind="lib" path="lib/soderer-remote-26.0.13.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
