@@ -17,7 +17,7 @@
 	<property name="bouncycastle.version" value="1.86" />
 	<property name="slf4j.version" value="2.0.20" />
 	<property name="csv.version" value="26.1.13" />
-	<property name="json.version" value="26.2.14" />
+	<property name="json.version" value="26.2.15" />
 	<property name="proxyautoconfig.version" value="26.1.5" />
 	<property name="network.version" value="26.0.39" />
 	<property name="soderer-console.version" value="26.0.12" />
