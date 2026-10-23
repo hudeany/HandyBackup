@@ -80,6 +80,7 @@ import de.soderer.utilities.DateUtilities;
 import de.soderer.utilities.IoUtilities;
 import de.soderer.utilities.LangResources;
 import de.soderer.utilities.Result;
+import de.soderer.utilities.StringUtilities;
 import de.soderer.utilities.Utilities;
 import de.soderer.utilities.Version;
 
@@ -259,10 +260,10 @@ public class HandyBackup extends UpdateableGuiApplication {
 			if (versionInfoLines.size() >= 2) {
 				VERSION_BUILDTIME = DateUtilities.parseLocalDateTime(DateUtilities.YYYY_MM_DD_HHMMSS, versionInfoLines.get(1));
 			}
-			if (versionInfoLines.size() >= 3 && Utilities.isNotBlank(versionInfoLines.get(2))) {
+			if (versionInfoLines.size() >= 3 && StringUtilities.isNotBlank(versionInfoLines.get(2))) {
 				VERSIONINFO_DOWNLOAD_URL = versionInfoLines.get(2);
 			}
-			if (versionInfoLines.size() >= 4 && Utilities.isNotBlank(versionInfoLines.get(3))) {
+			if (versionInfoLines.size() >= 4 && StringUtilities.isNotBlank(versionInfoLines.get(3))) {
 				TRUSTED_UPDATE_CA_CERTIFICATES = versionInfoLines.get(3);
 			}
 		} catch (@SuppressWarnings("unused") final Exception e) {
@@ -1985,7 +1986,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 	}
 
 	private void runDailyUpdateCheck() {
-		if (Utilities.isNotBlank(VERSIONINFO_DOWNLOAD_URL) && dailyUpdateCheckIsPending()) {
+		if (StringUtilities.isNotBlank(VERSIONINFO_DOWNLOAD_URL) && dailyUpdateCheckIsPending()) {
 			setDailyUpdateCheckStatus(true);
 			try {
 				final ApplicationConfigurationProperties applicationConfiguration = configuration.getConfigurationProperties();

@@ -16,7 +16,7 @@ import de.soderer.swing.ModalDialog;
 import de.soderer.swing.ShowDataDialog;
 import de.soderer.utilities.IoUtilities;
 import de.soderer.utilities.LangResources;
-import de.soderer.utilities.Utilities;
+import de.soderer.utilities.StringUtilities;
 import de.soderer.utilities.VersionInfo;
 
 /**
@@ -76,7 +76,7 @@ public class HelpDialog extends ModalDialog<Boolean> {
 				HandyBackup.showErrorDialog(this, LangResources.get("updateCheck"), e);
 			}
 		});
-		checkUpdateButton.setEnabled(!Utilities.isBlank(HandyBackup.VERSIONINFO_DOWNLOAD_URL));
+		checkUpdateButton.setEnabled(!StringUtilities.isBlank(HandyBackup.VERSIONINFO_DOWNLOAD_URL));
 		buttonSection.add(checkUpdateButton);
 
 		final JButton closeButton = new JButton(LangResources.get("close"));
@@ -106,7 +106,7 @@ public class HelpDialog extends ModalDialog<Boolean> {
 	 */
 	private void widenToFitTitle() {
 		final String title = getTitle();
-		if (Utilities.isBlank(title)) {
+		if (StringUtilities.isBlank(title)) {
 			return;
 		}
 
