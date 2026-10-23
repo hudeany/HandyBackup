@@ -20,7 +20,7 @@
 	<classpathentry kind="lib" path="lib/soderer-utilities-26.3.2.jar"/>
 	<classpathentry kind="lib" path="lib/soderer-swing-26.0.27.jar"/>
 	<classpathentry kind="lib" path="lib/bcprov-jdk18on-1.86.jar"/>
-	<classpathentry kind="lib" path="lib/soderer-applicationbase-26.0.38.jar"/>
+	<classpathentry kind="lib" path="lib/soderer-applicationbase-26.0.40.jar"/>
 	<classpathentry kind="lib" path="lib/soderer-console-26.0.13.jar"/>
 	<classpathentry kind="lib" path="lib/soderer-remote-26.0.16.jar"/>
 	<classpathentry kind="output" path="bin"/>
