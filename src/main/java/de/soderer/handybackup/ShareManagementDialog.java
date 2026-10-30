@@ -1,8 +1,8 @@
 package de.soderer.handybackup;
 
 import java.awt.BorderLayout;
+import java.awt.Component;
 import java.awt.Dimension;
-import java.awt.FlowLayout;
 import java.awt.GridLayout;
 import java.awt.Window;
 import java.awt.event.MouseAdapter;
@@ -10,36 +10,54 @@ import java.awt.event.MouseEvent;
 import java.util.List;
 
 import javax.swing.BorderFactory;
+import javax.swing.DefaultListCellRenderer;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
-import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JList;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.ListSelectionModel;
 
+import de.soderer.swing.modern.ButtonStyle;
+import de.soderer.swing.modern.DialogStyle;
+import de.soderer.swing.modern.IconKind;
+import de.soderer.swing.modern.ModalDialogModern;
+import de.soderer.swing.modern.ModernUi;
+import de.soderer.swing.modern.QuestionDialog;
 import de.soderer.utilities.LangResources;
 
 /**
  * Dialog for managing the backup targets, Samba shares and local folders (add, edit, delete).
  * Shows which devices are assigned to the selected target.
  */
-public class ShareManagementDialog extends JDialog {
+public class ShareManagementDialog extends ModalDialogModern<Boolean> {
 	private static final long serialVersionUID = 1L;
 
 	private final HandyBackupConfiguration configuration;
 	private final DefaultListModel<ShareDefinition> listModel = new DefaultListModel<>();
 	private final JList<ShareDefinition> shareList = new JList<>(listModel);
-	private final JLabel detailLabel = new JLabel(" ");
+	private final JLabel detailLabel = ModernUi.createMutedLabel(" ");
 	private boolean changed = false;
 
 	public ShareManagementDialog(final Window owner, final HandyBackupConfiguration configuration) {
-		super(owner, LangResources.get("sharesTitle"), ModalityType.APPLICATION_MODAL);
+		super(owner, LangResources.get("sharesTitle"), IconKind.SERVER);
 		this.configuration = configuration;
 
 		shareList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+		shareList.setSelectionBackground(ModernUi.ACCENT_LIGHT);
+		shareList.setSelectionForeground(ModernUi.TEXT);
+		shareList.setCellRenderer(new DefaultListCellRenderer() {
+			private static final long serialVersionUID = 1L;
+
+			@Override
+			public Component getListCellRendererComponent(final JList<?> list, final Object value, final int index, final boolean isSelected, final boolean cellHasFocus) {
+				super.getListCellRendererComponent(list, value, index, isSelected, false);
+				// More room per entry than the look and feel's default
+				setBorder(BorderFactory.createEmptyBorder(6, 10, 6, 10));
+				return this;
+			}
+		});
 		shareList.addListSelectionListener(event -> updateDetails());
 		shareList.addMouseListener(new MouseAdapter() {
 			@Override
@@ -50,37 +68,35 @@ public class ShareManagementDialog extends JDialog {
 			}
 		});
 
-		final JButton addButton = new JButton(LangResources.get("newButton"));
-		final JButton editButton = new JButton(LangResources.get("editButton"));
-		final JButton deleteButton = new JButton(LangResources.get("deleteButton"));
-		final JButton closeButton = new JButton(LangResources.get("close"));
+		final JButton addButton = createButton(LangResources.get("newButton"), IconKind.PLUS, ButtonStyle.SECONDARY);
+		final JButton editButton = createButton(LangResources.get("editButton"), IconKind.EDIT, ButtonStyle.SECONDARY);
+		final JButton deleteButton = createButton(LangResources.get("deleteButton"), IconKind.TRASH, ButtonStyle.DANGEROUS);
 		addButton.addActionListener(event -> onAdd());
 		editButton.addActionListener(event -> onEdit());
 		deleteButton.addActionListener(event -> onDelete());
-		closeButton.addActionListener(event -> dispose());
 
-		final JPanel sideButtons = new JPanel(new GridLayout(0, 1, 5, 5));
+		final JPanel sideButtons = new JPanel(new GridLayout(0, 1, 0, 8));
+		sideButtons.setOpaque(false);
 		sideButtons.add(addButton);
 		sideButtons.add(editButton);
 		sideButtons.add(deleteButton);
 		final JPanel sidePanel = new JPanel(new BorderLayout());
+		sidePanel.setOpaque(false);
 		sidePanel.add(sideButtons, BorderLayout.NORTH);
 
 		final JScrollPane listScrollPane = new JScrollPane(shareList);
+		ModernUi.styleScrollPane(listScrollPane, ModernUi.CARD);
 		listScrollPane.setPreferredSize(new Dimension(380, 200));
 
-		final JPanel centerPanel = new JPanel(new BorderLayout(10, 10));
-		centerPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 0, 10));
+		final JPanel centerPanel = new JPanel(new BorderLayout(12, 10));
+		centerPanel.setOpaque(false);
 		centerPanel.add(listScrollPane, BorderLayout.CENTER);
 		centerPanel.add(sidePanel, BorderLayout.EAST);
 		centerPanel.add(detailLabel, BorderLayout.SOUTH);
+		getContentArea().add(centerPanel, BorderLayout.CENTER);
 
-		final JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-		bottomPanel.add(closeButton);
-
-		getContentPane().setLayout(new BorderLayout());
-		getContentPane().add(centerPanel, BorderLayout.CENTER);
-		getContentPane().add(bottomPanel, BorderLayout.SOUTH);
+		final JButton closeButton = addButton(LangResources.get("close"), null, ButtonStyle.PRIMARY, event -> dispose());
+		getRootPane().setDefaultButton(closeButton);
 
 		reloadList(null);
 		pack();
@@ -136,9 +152,11 @@ public class ShareManagementDialog extends JDialog {
 	}
 
 	private void onAdd() {
-		final Object[] options = { LangResources.get("targetTypeSmb"), LangResources.get("targetTypeLocal"), LangResources.get("cancel") };
-		final int choice = JOptionPane.showOptionDialog(this, LangResources.get("newTargetQuestion"), LangResources.get("newTargetTitle"),
-			JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
+		final Integer answer = new QuestionDialog(this, LangResources.get("newTargetTitle"), LangResources.get("newTargetQuestion"),
+			LangResources.get("targetTypeSmb"), LangResources.get("targetTypeLocal"), LangResources.get("cancel"))
+			.withDialogStyle(DialogStyle.QUESTION)
+			.open();
+		final int choice = answer == null ? -1 : answer;
 		final ShareDefinition share;
 		if (choice == 0) {
 			share = new ShareEditDialog(this, configuration, null).showDialog();
@@ -178,7 +196,11 @@ public class ShareManagementDialog extends JDialog {
 		final String question = LangResources.get("deleteShareQuestion", selected.getName())
 			+ (assignedDevices > 0 ? "\n" + LangResources.get("deleteShareLosesAssignment", assignedDevices) : "")
 			+ "\n" + LangResources.get("deleteShareFilesKept");
-		if (JOptionPane.showConfirmDialog(this, question, getTitle(), JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE) == JOptionPane.YES_OPTION) {
+		// Cancel is the default answer, deleting must be chosen explicitly
+		final Integer answer = new QuestionDialog(this, getTitle(), question, LangResources.get("cancel"), LangResources.get("deleteButton"))
+			.withDialogStyle(DialogStyle.WARNING)
+			.open();
+		if (answer != null && answer == 1) {
 			configuration.removeShare(selected.getName());
 			save();
 			reloadList(null);
