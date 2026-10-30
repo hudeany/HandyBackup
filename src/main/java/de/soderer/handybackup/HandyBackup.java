@@ -72,8 +72,8 @@ import javax.swing.text.StyledDocument;
 
 import de.soderer.applicationbase.ApplicationConfigurationProperties;
 import de.soderer.applicationbase.ApplicationUpdateUtilities;
-import de.soderer.applicationbase.UpdateableGuiApplication;
 import de.soderer.applicationbase.modern.ApplicationConfigurationDialog;
+import de.soderer.applicationbase.modern.UpdateableGuiApplication;
 import de.soderer.handybackup.mtp.MtpDevice;
 import de.soderer.handybackup.mtp.MtpErrorType;
 import de.soderer.handybackup.mtp.MtpFile;
@@ -203,9 +203,9 @@ public class HandyBackup extends UpdateableGuiApplication {
 	private final String noShareText = LangResources.get("noShareAssigned");
 
 	private final JComboBox<MtpDevice> deviceCombo = new JComboBox<>();
-	private final JButton refreshDevicesButton = new ModernUi.ModernButton(LangResources.get("searchDevices"), IconKind.REFRESH, ButtonStyle.SECONDARY);
+	private final JButton refreshDevicesButton = new ModernUi.Button(LangResources.get("searchDevices"), IconKind.REFRESH, ButtonStyle.SECONDARY);
 	private final JComboBox<String> shareCombo = new JComboBox<>();
-	private final JButton manageSharesButton = new ModernUi.ModernButton(LangResources.get("shares"), IconKind.SERVER, ButtonStyle.SECONDARY);
+	private final JButton manageSharesButton = new ModernUi.Button(LangResources.get("shares"), IconKind.SERVER, ButtonStyle.SECONDARY);
 	private final JButton configButton = createHeaderButton(IconKind.GEAR, LangResources.get("configuration"));
 	private final JButton helpButton = createHeaderButton(IconKind.HELP, LangResources.get("help"));
 	/** Device information (manufacturer, model, serial number, battery) shown as chips */
@@ -217,10 +217,10 @@ public class HandyBackup extends UpdateableGuiApplication {
 	private final JLabel deleteAfterDaysInfoLabel = new JLabel(" ");
 	private final LazyTree deviceTree = new LazyTree(ioExecutor, LangResources.get("noDeviceSelected"));
 	private final LazyTree shareTree = new LazyTree(ioExecutor, LangResources.get("noShareAssignedTree"));
-	private final JButton refreshTreesButton = new ModernUi.ModernButton(LangResources.get("refreshView"), IconKind.REFRESH, ButtonStyle.SECONDARY);
-	private final JButton startButton = new ModernUi.ModernButton(LangResources.get("startBackup"), IconKind.PLAY, ButtonStyle.PRIMARY);
-	private final JButton cancelButton = new ModernUi.ModernButton(LangResources.get("cancel"), IconKind.STOP, ButtonStyle.DANGEROUS);
-	private final JButton closeButton = new ModernUi.ModernButton(LangResources.get("close"), null, ButtonStyle.SECONDARY);
+	private final JButton refreshTreesButton = new ModernUi.Button(LangResources.get("refreshView"), IconKind.REFRESH, ButtonStyle.SECONDARY);
+	private final JButton startButton = new ModernUi.Button(LangResources.get("startBackup"), IconKind.PLAY, ButtonStyle.PRIMARY);
+	private final JButton cancelButton = new ModernUi.Button(LangResources.get("cancel"), IconKind.STOP, ButtonStyle.DANGEROUS);
+	private final JButton closeButton = new ModernUi.Button(LangResources.get("close"), null, ButtonStyle.SECONDARY);
 	private final JProgressBar progressBar = ModernUi.createProgressBar();
 	private final JLabel statusLabel = new JLabel(" ");
 	private final JTextPane logPane = new JTextPane();
@@ -2237,7 +2237,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 	 * Transparent icon button for the gradient header; the text is shown as tooltip.
 	 */
 	private static JButton createHeaderButton(final IconKind iconKind, final String text) {
-		final JButton button = new ModernUi.ModernButton(null, iconKind, ButtonStyle.HEADER);
+		final JButton button = new ModernUi.Button(null, iconKind, ButtonStyle.HEADER);
 		button.setToolTipText(text);
 		button.getAccessibleContext().setAccessibleName(text);
 		return button;
