@@ -70,10 +70,10 @@ import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
 
-import de.soderer.applicationbase.ApplicationConfigurationDialogModern;
 import de.soderer.applicationbase.ApplicationConfigurationProperties;
 import de.soderer.applicationbase.ApplicationUpdateUtilities;
 import de.soderer.applicationbase.UpdateableGuiApplication;
+import de.soderer.applicationbase.modern.ApplicationConfigurationDialog;
 import de.soderer.handybackup.mtp.MtpDevice;
 import de.soderer.handybackup.mtp.MtpErrorType;
 import de.soderer.handybackup.mtp.MtpFile;
@@ -2152,7 +2152,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 		try {
 			final ConfigurationProperties applicationConfiguration = configuration.getConfigurationProperties();
 			final ImageIcon applicationIcon = getImageIcon("HandyBackup.png");
-			final ApplicationConfigurationDialogModern dialog = new ApplicationConfigurationDialogModern(this, APPLICATION_NAME, APPLICATION_STARTUPCLASS_NAME, VERSION, VERSION_BUILDTIME, applicationConfiguration,
+			final ApplicationConfigurationDialog dialog = new ApplicationConfigurationDialog(this, APPLICATION_NAME, APPLICATION_STARTUPCLASS_NAME, VERSION, VERSION_BUILDTIME, applicationConfiguration,
 				readResource("/images/icons/HandyBackup.ico"), applicationIcon == null ? null : applicationIcon.getImage(), VERSIONINFO_DOWNLOAD_URL, TRUSTED_UPDATE_CA_CERTIFICATES, null);
 			if (dialog.open() == Result.OK) {
 				applicationConfiguration.save();

@@ -22,7 +22,7 @@ import javax.swing.ListSelectionModel;
 import de.soderer.swing.modern.ButtonStyle;
 import de.soderer.swing.modern.DialogStyle;
 import de.soderer.swing.modern.IconKind;
-import de.soderer.swing.modern.ModalDialogModern;
+import de.soderer.swing.modern.ModalDialog;
 import de.soderer.swing.modern.ModernUi;
 import de.soderer.swing.modern.QuestionDialog;
 import de.soderer.utilities.LangResources;
@@ -31,7 +31,7 @@ import de.soderer.utilities.LangResources;
  * Dialog for managing the backup targets, Samba shares and local folders (add, edit, delete).
  * Shows which devices are assigned to the selected target.
  */
-public class ShareManagementDialog extends ModalDialogModern<Boolean> {
+public class ShareManagementDialog extends ModalDialog<Boolean> {
 	private static final long serialVersionUID = 1L;
 
 	private final HandyBackupConfiguration configuration;

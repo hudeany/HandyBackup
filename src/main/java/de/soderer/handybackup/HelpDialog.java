@@ -12,7 +12,7 @@ import javax.swing.JPanel;
 
 import de.soderer.applicationbase.ApplicationConfigurationProperties;
 import de.soderer.applicationbase.ApplicationUpdateUtilities;
-import de.soderer.swing.modern.ModalDialogModern;
+import de.soderer.swing.modern.ModalDialog;
 import de.soderer.swing.modern.ShowDataDialog;
 import de.soderer.utilities.IoUtilities;
 import de.soderer.utilities.LangResources;
@@ -25,7 +25,7 @@ import de.soderer.utilities.VersionInfo;
  *
  * @serial exclude
  */
-public class HelpDialog extends ModalDialogModern<Boolean> {
+public class HelpDialog extends ModalDialog<Boolean> {
 	private static final long serialVersionUID = 6184217830926151842L;
 
 	/**
