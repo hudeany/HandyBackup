@@ -417,7 +417,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 	// ---------------------------------------------------------------- layout
 
 	/**
-	 * Gradient header with logo, application name, version and the configuration and help buttons.
+	 * Gradient header with logo, application name, version and the help and configuration buttons.
 	 */
 	private JPanel createHeader(final ImageIcon applicationIcon) {
 		final ModernUi.GradientHeader header = new ModernUi.GradientHeader();
@@ -436,8 +436,9 @@ public class HandyBackup extends UpdateableGuiApplication {
 
 		final JPanel applicationButtonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
 		applicationButtonPanel.setOpaque(false);
-		applicationButtonPanel.add(configButton);
 		applicationButtonPanel.add(helpButton);
+		// The configuration button is the rightmost one, like in the other applications
+		applicationButtonPanel.add(configButton);
 		final JPanel eastPanel = new JPanel(new GridBagLayout());
 		eastPanel.setOpaque(false);
 		eastPanel.add(applicationButtonPanel);
