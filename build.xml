@@ -21,7 +21,7 @@
 	<property name="proxyautoconfig.version" value="26.1.6" />
 	<property name="network.version" value="26.0.40" />
 	<property name="soderer-console.version" value="26.0.15" />
-	<property name="soderer-swing.version" value="26.0.34" />
+	<property name="soderer-swing.version" value="26.0.36" />
 	<property name="soderer-utilities.version" value="26.3.7" />
 	<property name="soderer-remote.version" value="26.0.20" />
 	<property name="soderer-applicationbase.version" value="26.0.45" />
