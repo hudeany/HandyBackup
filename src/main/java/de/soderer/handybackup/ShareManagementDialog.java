@@ -12,7 +12,7 @@ import java.util.List;
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.DefaultListModel;
-import javax.swing.JButton;
+import de.soderer.swing.modern.Button;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
@@ -68,9 +68,9 @@ public class ShareManagementDialog extends ModalDialog<Boolean> {
 			}
 		});
 
-		final JButton addButton = createButton(LangResources.get("newButton"), IconKind.PLUS, ButtonStyle.SECONDARY);
-		final JButton editButton = createButton(LangResources.get("editButton"), IconKind.EDIT, ButtonStyle.SECONDARY);
-		final JButton deleteButton = createButton(LangResources.get("deleteButton"), IconKind.TRASH, ButtonStyle.DANGEROUS);
+		final Button addButton = createButton(LangResources.get("newButton"), IconKind.PLUS, ButtonStyle.SECONDARY);
+		final Button editButton = createButton(LangResources.get("editButton"), IconKind.EDIT, ButtonStyle.SECONDARY);
+		final Button deleteButton = createButton(LangResources.get("deleteButton"), IconKind.TRASH, ButtonStyle.DANGEROUS);
 		addButton.addActionListener(event -> onAdd());
 		editButton.addActionListener(event -> onEdit());
 		deleteButton.addActionListener(event -> onDelete());
@@ -95,7 +95,7 @@ public class ShareManagementDialog extends ModalDialog<Boolean> {
 		centerPanel.add(detailLabel, BorderLayout.SOUTH);
 		getContentArea().add(centerPanel, BorderLayout.CENTER);
 
-		final JButton closeButton = addButton(LangResources.get("close"), null, ButtonStyle.PRIMARY, event -> dispose());
+		final Button closeButton = addButton(LangResources.get("close"), null, ButtonStyle.PRIMARY, event -> dispose());
 		getRootPane().setDefaultButton(closeButton);
 
 		reloadList(null);

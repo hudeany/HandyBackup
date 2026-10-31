@@ -13,7 +13,6 @@ import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 
 import javax.swing.BorderFactory;
-import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JFileChooser;
@@ -23,6 +22,8 @@ import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.KeyStroke;
 
+import de.soderer.swing.modern.Button;
+import de.soderer.swing.modern.ButtonStyle;
 import de.soderer.utilities.LangResources;
 
 /**
@@ -54,7 +55,7 @@ public class LocalTargetEditDialog extends JDialog {
 		}
 		pathField.setToolTipText(LangResources.get("localFolderTooltip"));
 
-		final JButton browseButton = new JButton(LangResources.get("browseButton"));
+		final Button browseButton = new Button(LangResources.get("browseButton"), null, ButtonStyle.SECONDARY);
 		browseButton.addActionListener(event -> onBrowse());
 
 		final JPanel formPanel = new JPanel(new GridBagLayout());
@@ -87,8 +88,8 @@ public class LocalTargetEditDialog extends JDialog {
 		constraints.weightx = 0;
 		formPanel.add(browseButton, constraints);
 
-		final JButton okButton = new JButton(LangResources.get("ok"));
-		final JButton cancelButton = new JButton(LangResources.get("cancel"));
+		final Button okButton = new Button(LangResources.get("ok"), null, ButtonStyle.SECONDARY);
+		final Button cancelButton = new Button(LangResources.get("cancel"), null, ButtonStyle.SECONDARY);
 		okButton.addActionListener(event -> onOk());
 		cancelButton.addActionListener(event -> dispose());
 		final JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));

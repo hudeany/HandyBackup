@@ -45,7 +45,6 @@ import javax.swing.BorderFactory;
 import javax.swing.DefaultComboBoxModel;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.ImageIcon;
-import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JComboBox;
@@ -82,8 +81,13 @@ import de.soderer.handybackup.mtp.MtpManager;
 import de.soderer.remote.DirectoryListing;
 import de.soderer.remote.FileInfo;
 import de.soderer.remote.FolderInfo;
+import de.soderer.swing.modern.Button;
 import de.soderer.swing.modern.ButtonStyle;
+import de.soderer.swing.modern.Card;
+import de.soderer.swing.modern.Chip;
+import de.soderer.swing.modern.ChipStyle;
 import de.soderer.swing.modern.ErrorDialog;
+import de.soderer.swing.modern.GradientHeader;
 import de.soderer.swing.modern.IconKind;
 import de.soderer.swing.modern.ModernUi;
 import de.soderer.utilities.ConfigurationProperties;
@@ -203,11 +207,11 @@ public class HandyBackup extends UpdateableGuiApplication {
 	private final String noShareText = LangResources.get("noShareAssigned");
 
 	private final JComboBox<MtpDevice> deviceCombo = new JComboBox<>();
-	private final JButton refreshDevicesButton = new ModernUi.Button(LangResources.get("searchDevices"), IconKind.REFRESH, ButtonStyle.SECONDARY);
+	private final Button refreshDevicesButton = new Button(LangResources.get("searchDevices"), IconKind.REFRESH, ButtonStyle.SECONDARY);
 	private final JComboBox<String> shareCombo = new JComboBox<>();
-	private final JButton manageSharesButton = new ModernUi.Button(LangResources.get("shares"), IconKind.SERVER, ButtonStyle.SECONDARY);
-	private final JButton configButton = createHeaderButton(IconKind.GEAR, LangResources.get("configuration"));
-	private final JButton helpButton = createHeaderButton(IconKind.HELP, LangResources.get("help"));
+	private final Button manageSharesButton = new Button(LangResources.get("shares"), IconKind.SERVER, ButtonStyle.SECONDARY);
+	private final Button configButton = createHeaderButton(IconKind.GEAR, LangResources.get("configuration"));
+	private final Button helpButton = createHeaderButton(IconKind.HELP, LangResources.get("help"));
 	/** Device information (manufacturer, model, serial number, battery) shown as chips */
 	private final JPanel deviceInfoPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
 	/** Path of the assigned backup target shown as chip */
@@ -217,10 +221,10 @@ public class HandyBackup extends UpdateableGuiApplication {
 	private final JLabel deleteAfterDaysInfoLabel = new JLabel(" ");
 	private final LazyTree deviceTree = new LazyTree(ioExecutor, LangResources.get("noDeviceSelected"));
 	private final LazyTree shareTree = new LazyTree(ioExecutor, LangResources.get("noShareAssignedTree"));
-	private final JButton refreshTreesButton = new ModernUi.Button(LangResources.get("refreshView"), IconKind.REFRESH, ButtonStyle.SECONDARY);
-	private final JButton startButton = new ModernUi.Button(LangResources.get("startBackup"), IconKind.PLAY, ButtonStyle.PRIMARY);
-	private final JButton cancelButton = new ModernUi.Button(LangResources.get("cancel"), IconKind.STOP, ButtonStyle.DANGEROUS);
-	private final JButton closeButton = new ModernUi.Button(LangResources.get("close"), null, ButtonStyle.SECONDARY);
+	private final Button refreshTreesButton = new Button(LangResources.get("refreshView"), IconKind.REFRESH, ButtonStyle.SECONDARY);
+	private final Button startButton = new Button(LangResources.get("startBackup"), IconKind.PLAY, ButtonStyle.PRIMARY);
+	private final Button cancelButton = new Button(LangResources.get("cancel"), IconKind.STOP, ButtonStyle.DANGEROUS);
+	private final Button closeButton = new Button(LangResources.get("close"), null, ButtonStyle.SECONDARY);
 	private final JProgressBar progressBar = ModernUi.createProgressBar();
 	private final JLabel statusLabel = new JLabel(" ");
 	private final JTextPane logPane = new JTextPane();
@@ -420,7 +424,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 	 * Gradient header with logo, application name, version and the help and configuration buttons.
 	 */
 	private JPanel createHeader(final ImageIcon applicationIcon) {
-		final ModernUi.GradientHeader header = new ModernUi.GradientHeader();
+		final GradientHeader header = new GradientHeader();
 		header.add(ModernUi.createLogo(applicationIcon), BorderLayout.WEST);
 
 		final JLabel titleLabel = new JLabel(APPLICATION_NAME);
@@ -455,12 +459,12 @@ public class HandyBackup extends UpdateableGuiApplication {
 		deleteAfterDaysInfoLabel.setForeground(ModernUi.ACCENT_PRESSED);
 		final JLabel unitLabel = ModernUi.createMutedLabel(LangResources.get("deleteFromPhoneAfterUnit"));
 		final JPanel deleteRow = createRow(deleteAfterDaysLabel, deleteAfterDaysSpinner, unitLabel, deleteAfterDaysInfoLabel);
-		final ModernUi.Card deviceCard = new ModernUi.Card(stripColon(LangResources.get("phoneLabel")), IconKind.PHONE, 10);
+		final Card deviceCard = new Card(stripColon(LangResources.get("phoneLabel")), IconKind.PHONE, 10);
 		deviceCard.setContent(createStack(deviceSelection, deviceInfoPanel, deleteRow));
 
 		final JPanel shareSelection = createRow(shareCombo, manageSharesButton);
 		shareInfoPanel.setOpaque(false);
-		final ModernUi.Card shareCard = new ModernUi.Card(stripColon(LangResources.get("backupTargetLabel")), IconKind.SERVER, 10);
+		final Card shareCard = new Card(stripColon(LangResources.get("backupTargetLabel")), IconKind.SERVER, 10);
 		shareCard.setContent(createStack(shareSelection, shareInfoPanel));
 
 		final JPanel selectionRow = new JPanel(new GridBagLayout());
@@ -479,8 +483,8 @@ public class HandyBackup extends UpdateableGuiApplication {
 	 * Device tree and share tree as cards side by side, the log card below; both splits are resizable.
 	 */
 	private JSplitPane createContentArea() {
-		final ModernUi.Card deviceTreeCard = createTreeCard(deviceTree, LangResources.get("deviceTreeTitle"), IconKind.PHONE);
-		final ModernUi.Card shareTreeCard = createTreeCard(shareTree, LangResources.get("shareTreeTitle"), IconKind.FOLDER);
+		final Card deviceTreeCard = createTreeCard(deviceTree, LangResources.get("deviceTreeTitle"), IconKind.PHONE);
+		final Card shareTreeCard = createTreeCard(shareTree, LangResources.get("shareTreeTitle"), IconKind.FOLDER);
 		final JSplitPane treeSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, deviceTreeCard, shareTreeCard);
 		treeSplitPane.setResizeWeight(0.5);
 		treeSplitPane.setContinuousLayout(true);
@@ -493,7 +497,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 		final JScrollPane logScrollPane = new JScrollPane(logPane);
 		ModernUi.styleScrollPane(logScrollPane, ModernUi.LOG_BACKGROUND);
 		logScrollPane.setPreferredSize(new Dimension(400, 150));
-		final ModernUi.Card logCard = new ModernUi.Card(LangResources.get("logTitle"), IconKind.LOG, 10);
+		final Card logCard = new Card(LangResources.get("logTitle"), IconKind.LOG, 10);
 		logCard.setContent(logScrollPane);
 
 		final JSplitPane mainSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, treeSplitPane, logCard);
@@ -503,14 +507,14 @@ public class HandyBackup extends UpdateableGuiApplication {
 		return mainSplitPane;
 	}
 
-	private static ModernUi.Card createTreeCard(final LazyTree tree, final String title, final IconKind iconKind) {
+	private static Card createTreeCard(final LazyTree tree, final String title, final IconKind iconKind) {
 		final Component treeComponent = tree;
 		if (treeComponent instanceof final JComponent jComponent) {
 			jComponent.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
 		}
 		final JScrollPane scrollPane = new JScrollPane(treeComponent);
 		ModernUi.styleScrollPane(scrollPane, Color.WHITE);
-		final ModernUi.Card card = new ModernUi.Card(title, iconKind, 10);
+		final Card card = new Card(title, iconKind, 10);
 		card.setContent(scrollPane);
 		return card;
 	}
@@ -518,7 +522,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 	/**
 	 * Floating bar with progress, status text and the action buttons.
 	 */
-	private ModernUi.Card createActionBar() {
+	private Card createActionBar() {
 		progressBar.setStringPainted(true);
 		progressBar.setString("");
 		progressBar.setPreferredSize(new Dimension(260, 20));
@@ -542,7 +546,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 		barContent.add(statusLabel, BorderLayout.CENTER);
 		barContent.add(buttonPanel, BorderLayout.EAST);
 
-		final ModernUi.Card actionBar = new ModernUi.Card(null, null, 8);
+		final Card actionBar = new Card(null, null, 8);
 		actionBar.setContent(barContent);
 		return actionBar;
 	}
@@ -731,11 +735,11 @@ public class HandyBackup extends UpdateableGuiApplication {
 		final MtpDevice device = currentDevice;
 		deviceInfoPanel.removeAll();
 		if (device == null) {
-			deviceInfoPanel.add(new ModernUi.Chip(null, LangResources.get("noDeviceSelected"), ModernUi.ChipStyle.NEUTRAL));
+			deviceInfoPanel.add(new Chip(null, LangResources.get("noDeviceSelected"), ChipStyle.NEUTRAL));
 		} else {
-			addInfoChip(LangResources.get("deviceManufacturer"), device.manufacturer(), ModernUi.ChipStyle.NEUTRAL);
-			addInfoChip(LangResources.get("deviceModel"), device.model(), ModernUi.ChipStyle.NEUTRAL);
-			addInfoChip(LangResources.get("deviceSerialNumber"), device.serialNumber() != null ? device.serialNumber() : LangResources.get("unknownValue"), ModernUi.ChipStyle.NEUTRAL);
+			addInfoChip(LangResources.get("deviceManufacturer"), device.manufacturer(), ChipStyle.NEUTRAL);
+			addInfoChip(LangResources.get("deviceModel"), device.model(), ChipStyle.NEUTRAL);
+			addInfoChip(LangResources.get("deviceSerialNumber"), device.serialNumber() != null ? device.serialNumber() : LangResources.get("unknownValue"), ChipStyle.NEUTRAL);
 			if (device.powerLevel() != null) {
 				final String powerLevel = String.valueOf(device.powerLevel()).trim();
 				addInfoChip(LangResources.get("deviceBattery"), powerLevel + " %", getBatteryChipStyle(powerLevel));
@@ -745,25 +749,25 @@ public class HandyBackup extends UpdateableGuiApplication {
 		deviceInfoPanel.repaint();
 	}
 
-	private void addInfoChip(final String label, final String value, final ModernUi.ChipStyle style) {
+	private void addInfoChip(final String label, final String value, final ChipStyle style) {
 		if (value != null && !value.isEmpty()) {
-			deviceInfoPanel.add(new ModernUi.Chip(label, value, style));
+			deviceInfoPanel.add(new Chip(label, value, style));
 		}
 	}
 
 	/** Green for a well charged battery, orange below 50 %, red below 20 % */
-	private static ModernUi.ChipStyle getBatteryChipStyle(final String powerLevel) {
+	private static ChipStyle getBatteryChipStyle(final String powerLevel) {
 		try {
 			final int level = Integer.parseInt(powerLevel.replace("%", "").trim());
 			if (level < 20) {
-				return ModernUi.ChipStyle.DANGEROUS;
+				return ChipStyle.DANGEROUS;
 			} else if (level < 50) {
-				return ModernUi.ChipStyle.ALERT;
+				return ChipStyle.ALERT;
 			} else {
-				return ModernUi.ChipStyle.SUCCESSFUL;
+				return ChipStyle.SUCCESSFUL;
 			}
 		} catch (@SuppressWarnings("unused") final NumberFormatException e) {
-			return ModernUi.ChipStyle.NEUTRAL;
+			return ChipStyle.NEUTRAL;
 		}
 	}
 
@@ -771,9 +775,9 @@ public class HandyBackup extends UpdateableGuiApplication {
 	private void updateShareInfo(final ShareDefinition share) {
 		shareInfoPanel.removeAll();
 		if (share != null) {
-			shareInfoPanel.add(new ModernUi.Chip(null, share.getDisplayPath(), ModernUi.ChipStyle.ACCENTUATED));
+			shareInfoPanel.add(new Chip(null, share.getDisplayPath(), ChipStyle.ACCENTUATED));
 		} else if (currentDevice != null) {
-			shareInfoPanel.add(new ModernUi.Chip(null, noShareText, ModernUi.ChipStyle.ALERT));
+			shareInfoPanel.add(new Chip(null, noShareText, ChipStyle.ALERT));
 		}
 		shareInfoPanel.revalidate();
 		shareInfoPanel.repaint();
@@ -2237,8 +2241,8 @@ public class HandyBackup extends UpdateableGuiApplication {
 	/**
 	 * Transparent icon button for the gradient header; the text is shown as tooltip.
 	 */
-	private static JButton createHeaderButton(final IconKind iconKind, final String text) {
-		final JButton button = new ModernUi.Button(null, iconKind, ButtonStyle.HEADER);
+	private static Button createHeaderButton(final IconKind iconKind, final String text) {
+		final Button button = new Button(null, iconKind, ButtonStyle.HEADER);
 		button.setToolTipText(text);
 		button.getAccessibleContext().setAccessibleName(text);
 		return button;

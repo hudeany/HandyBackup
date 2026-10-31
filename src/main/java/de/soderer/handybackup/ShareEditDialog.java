@@ -9,7 +9,6 @@ import java.awt.Window;
 import java.util.Arrays;
 
 import javax.swing.BorderFactory;
-import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
@@ -20,6 +19,8 @@ import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 
 import de.soderer.remote.SmbConnection;
+import de.soderer.swing.modern.Button;
+import de.soderer.swing.modern.ButtonStyle;
 import de.soderer.utilities.LangResources;
 
 /**
@@ -37,7 +38,7 @@ public class ShareEditDialog extends JDialog {
 	private final JTextField basePathField = new JTextField(25);
 	private final JTextField usernameField = new JTextField(25);
 	private final JPasswordField passwordField = new JPasswordField(25);
-	private final JButton testButton = new JButton(LangResources.get("testConnection"));
+	private final Button testButton = new Button(LangResources.get("testConnection"), null, ButtonStyle.SECONDARY);
 	private ShareDefinition result = null;
 
 	/**
@@ -74,8 +75,8 @@ public class ShareEditDialog extends JDialog {
 		}
 		basePathField.setToolTipText(LangResources.get("shareSubfolderTooltip"));
 
-		final JButton okButton = new JButton(LangResources.get("ok"));
-		final JButton cancelButton = new JButton(LangResources.get("cancel"));
+		final Button okButton = new Button(LangResources.get("ok"), null, ButtonStyle.SECONDARY);
+		final Button cancelButton = new Button(LangResources.get("cancel"), null, ButtonStyle.SECONDARY);
 		okButton.addActionListener(event -> onOk());
 		cancelButton.addActionListener(event -> dispose());
 		testButton.addActionListener(event -> onTest());
