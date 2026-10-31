@@ -134,7 +134,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 	 * Startup class name of the application, also used as AWT window manager class (e.g. for pinning the
 	 * application to the Linux Gnome dock).
 	 */
-	public static final String APPLICATION_STARTUPCLASS_NAME = "de-soderer-handybackup";
+	public static final String APPLICATION_STARTUPCLASS_NAME = "de-soderer-" + APPLICATION_NAME;
 
 	/** Resource containing version number, build time, versioninfo download url and trusted update CA certificates */
 	public static final String VERSION_RESOURCE_FILE = "/application_version.txt";
