@@ -1,4 +1,0 @@
-Version ${build.version}
-
-26.0.0
-Initial creation of HandyBackup
