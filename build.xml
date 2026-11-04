@@ -19,12 +19,12 @@
 	<property name="csv.version" value="26.1.15" />
 	<property name="json.version" value="26.2.17" />
 	<property name="proxyautoconfig.version" value="26.1.6" />
-	<property name="network.version" value="26.0.40" />
+	<property name="network.version" value="26.0.41" />
 	<property name="soderer-console.version" value="26.0.15" />
 	<property name="soderer-swing.version" value="26.0.44" />
 	<property name="soderer-utilities.version" value="26.3.7" />
 	<property name="soderer-remote.version" value="26.0.20" />
-	<property name="soderer-applicationbase.version" value="26.0.58" />
+	<property name="soderer-applicationbase.version" value="26.0.60" />
 
 	<patternset id="application.resources">
 		<include name="**/LanguageProperties*.properties" />
