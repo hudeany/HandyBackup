@@ -2158,7 +2158,7 @@ public class HandyBackup extends UpdateableGuiApplication {
 			final ConfigurationProperties applicationConfiguration = configuration.getConfigurationProperties();
 			final ImageIcon applicationIcon = getImageIcon("HandyBackup.png");
 			final ApplicationConfigurationDialog dialog = new ApplicationConfigurationDialog(this, APPLICATION_NAME, APPLICATION_STARTUPCLASS_NAME, VERSION, VERSION_BUILDTIME, applicationConfiguration,
-				readResource("/images/icons/HandyBackup.ico"), applicationIcon == null ? null : applicationIcon.getImage(), VERSIONINFO_DOWNLOAD_URL, TRUSTED_UPDATE_CA_CERTIFICATES, null);
+				readResource("/images/icons/HandyBackup.ico"), applicationIcon == null ? null : applicationIcon.getImage(), VERSIONINFO_DOWNLOAD_URL, TRUSTED_UPDATE_CA_CERTIFICATES, null, false);
 			if (dialog.open() == Result.OK) {
 				applicationConfiguration.save();
 			}
